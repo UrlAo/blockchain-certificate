@@ -24,6 +24,40 @@
     "type": "event"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "bytes32", "name": "certHash", "type": "bytes32" },
+      { "indexed": false, "internalType": "string", "name": "reason", "type": "string" }
+    ],
+    "name": "CertificateRevoked",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "address", "name": "account", "type": "address" }
+    ],
+    "name": "IssuerAdded",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "address", "name": "account", "type": "address" }
+    ],
+    "name": "IssuerRemoved",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "bytes32", "name": "root", "type": "bytes32" },
+      { "indexed": false, "internalType": "string", "name": "batchId", "type": "string" }
+    ],
+    "name": "BatchRootIssued",
+    "type": "event"
+  },
+  {
     "inputs": [],
     "name": "admin",
     "outputs": [ { "internalType": "address", "name": "", "type": "address" } ],

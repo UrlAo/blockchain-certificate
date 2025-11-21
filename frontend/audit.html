@@ -32,9 +32,21 @@
 
   <script>
     let provider, contract, cached = []
+    const LOCAL_CHAIN_ID_HEX = '0x7A69'
+    const LOCAL_RPC_URL = 'http://127.0.0.1:8545'
 
     async function init() {
       if (typeof window.ethereum === 'undefined') { alert('请安装MetaMask'); return }
+      const currentChain = await window.ethereum.request({ method: 'eth_chainId' })
+      if (currentChain !== LOCAL_CHAIN_ID_HEX) {
+        try {
+          await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: LOCAL_CHAIN_ID_HEX }] })
+        } catch (e) {
+          if (e && e.code === 4902) {
+            await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [{ chainId: LOCAL_CHAIN_ID_HEX, chainName: 'Hardhat Local', rpcUrls: [LOCAL_RPC_URL], nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 } }] })
+          }
+        }
+      }
       provider = new ethers.providers.Web3Provider(window.ethereum)
       await provider.send('eth_requestAccounts', [])
       const network = await provider.getNetwork()
@@ -48,13 +60,16 @@
 
     async function loadEvents() {
       if (!contract) await init()
+      const status = document.getElementById('summary')
+      status.innerText = '加载中...'
       const fromBlock = 0
       const toBlock = 'latest'
-      const issued = await contract.queryFilter(contract.filters.CertificateIssued(), fromBlock, toBlock)
-      const revoked = await contract.queryFilter(contract.filters.CertificateRevoked(), fromBlock, toBlock)
-      const added = await contract.queryFilter(contract.filters.IssuerAdded(), fromBlock, toBlock)
-      const removed = await contract.queryFilter(contract.filters.IssuerRemoved(), fromBlock, toBlock)
-      const batchRoots = await contract.queryFilter(contract.filters.BatchRootIssued && contract.filters.BatchRootIssued(), fromBlock, toBlock).catch(()=>[])
+      let issued = [], revoked = [], added = [], removed = [], batchRoots = []
+      try { issued = await contract.queryFilter(contract.filters.CertificateIssued(), fromBlock, toBlock) } catch(_){}
+      try { revoked = await contract.queryFilter(contract.filters.CertificateRevoked(), fromBlock, toBlock) } catch(_){}
+      try { added = await contract.queryFilter(contract.filters.IssuerAdded(), fromBlock, toBlock) } catch(_){}
+      try { removed = await contract.queryFilter(contract.filters.IssuerRemoved(), fromBlock, toBlock) } catch(_){}
+      try { batchRoots = await contract.queryFilter(contract.filters.BatchRootIssued(), fromBlock, toBlock) } catch(_){}
 
       cached = []
       const push = (type, ev) => {
@@ -69,17 +84,17 @@
       revoked.forEach(e=>push('CertificateRevoked', e))
       added.forEach(e=>push('IssuerAdded', e))
       removed.forEach(e=>push('IssuerRemoved', e))
-      (batchRoots||[]).forEach(e=>push('BatchRootIssued', e))
+      batchRoots.forEach(e=>push('BatchRootIssued', e))
 
       cached.sort((a,b)=>a.blockNumber-b.blockNumber)
-      document.getElementById('summary').innerText = `共 ${cached.length} 条事件`
-      const rows = cached.map(ev=>`
+      status.innerText = `共 ${cached.length} 条事件`
+      const rows = cached.length ? cached.map(ev=>`
         <div class="card">
           <div class="row"><strong>${ev.type}</strong> <span class="hint">block: ${ev.blockNumber}</span></div>
           <div class="hint">tx: ${ev.txHash}</div>
           <div>${renderArgs(ev)}</div>
         </div>
-      `).join('')
+      `).join('') : '<div class="card info">当前没有事件记录</div>'
       document.getElementById('events').innerHTML = rows
     }
 
