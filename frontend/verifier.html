@@ -220,9 +220,22 @@
   } ];
 
         // 初始化以太坊连接（只读模式）
+        const LOCAL_CHAIN_ID_HEX = '0x7A69';
+        const LOCAL_RPC_URL = 'http://127.0.0.1:8545';
+
         async function initEthereum() {
             if (typeof window.ethereum !== 'undefined') {
-                provider = new ethers.BrowserProvider(window.ethereum);
+                const currentChain = await window.ethereum.request({ method: 'eth_chainId' });
+                if (currentChain !== LOCAL_CHAIN_ID_HEX) {
+                    try {
+                        await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: LOCAL_CHAIN_ID_HEX }] });
+                    } catch (e) {
+                        if (e && e.code === 4902) {
+                            await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [{ chainId: LOCAL_CHAIN_ID_HEX, chainName: 'Hardhat Local', rpcUrls: [LOCAL_RPC_URL], nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 } }] });
+                        }
+                    }
+                }
+                provider = new ethers.providers.Web3Provider(window.ethereum);
                 contract = new ethers.Contract(contractAddress, contractABI, provider);
                 console.log("以太坊连接初始化成功");
             } else {

@@ -1,9 +1,9 @@
 {
   "_format": "hh-sol-cache-2",
   "files": {
-    "D:\\Code\\blockchain-certificate\\contracts\\Certificate.sol": {
-      "lastModificationDate": 1763605898003,
-      "contentHash": "34b331db0e2d0c5d33b72da0d328bd1c",
+    "/Users/livio/Desktop/BC/blockchain-certificate/contracts/Certificate.sol": {
+      "lastModificationDate": 1763703794039,
+      "contentHash": "b460c62ee2073ee5aefbe2c7925e9eb6",
       "sourceName": "contracts/Certificate.sol",
       "solcConfig": {
         "version": "0.8.19",

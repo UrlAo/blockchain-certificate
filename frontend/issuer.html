@@ -22,6 +22,10 @@
 <body>
     <button class="back-btn" onclick="location.href='index.html'">← 返回首页</button>
     <h1>🎓 发行证书</h1>
+    <div class="form-group">
+        <button id="connectBtn" onclick="connectWallet()">连接钱包</button>
+        <div id="walletInfo" class="info" style="display:none"></div>
+    </div>
     
     <div class="form-group">
         <label for="certFile">选择证书文件 (PDF/图片):</label>
@@ -54,6 +58,9 @@
     <script>
         let currentFileHash = '';
         let provider, signer, contract;
+        let currentAccount = '';
+        const LOCAL_CHAIN_ID_HEX = '0x7A69';
+        const LOCAL_RPC_URL = 'http://127.0.0.1:8545';
         const contractAddress = '0x5FbDB2315678afecb367f032d93F642f64180aa3'; // 部署后替换为实际地址
         const contractABI = [  {
     "inputs": [],
@@ -246,13 +253,58 @@
         // 初始化以太坊连接
         async function initEthereum() {
             if (typeof window.ethereum !== 'undefined') {
-                provider = new ethers.BrowserProvider(window.ethereum);
-                signer = await provider.getSigner();
+                const currentChain = await window.ethereum.request({ method: 'eth_chainId' });
+                if (currentChain !== LOCAL_CHAIN_ID_HEX) {
+                    try {
+                        await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: LOCAL_CHAIN_ID_HEX }] });
+                    } catch (e) {
+                        if (e && e.code === 4902) {
+                            await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [{ chainId: LOCAL_CHAIN_ID_HEX, chainName: 'Hardhat Local', rpcUrls: [LOCAL_RPC_URL], nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 } }] });
+                        }
+                    }
+                }
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+                await provider.send('eth_requestAccounts', []);
+                signer = provider.getSigner();
                 contract = new ethers.Contract(contractAddress, contractABI, signer);
                 console.log("以太坊连接初始化成功");
+                updateIssueBtnState();
+                try {
+                    const network = await provider.getNetwork();
+                    const addr = await signer.getAddress();
+                    currentAccount = addr;
+                    document.getElementById('walletInfo').style.display = 'block';
+                    document.getElementById('walletInfo').innerText = `已连接: ${addr} | chainId: ${network.chainId}`;
+                } catch (_) {}
             } else {
                 alert('请安装MetaMask!');
             }
+        }
+
+        async function connectWallet() {
+            if (typeof window.ethereum === 'undefined') { alert('请安装MetaMask!'); return; }
+            const currentChain = await window.ethereum.request({ method: 'eth_chainId' });
+            if (currentChain !== LOCAL_CHAIN_ID_HEX) {
+                try {
+                    await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: LOCAL_CHAIN_ID_HEX }] });
+                } catch (e) {
+                    if (e && e.code === 4902) {
+                        await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [{ chainId: LOCAL_CHAIN_ID_HEX, chainName: 'Hardhat Local', rpcUrls: [LOCAL_RPC_URL], nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 } }] });
+                    }
+                }
+            }
+            provider = new ethers.providers.Web3Provider(window.ethereum);
+            await provider.send('eth_requestAccounts', []);
+            signer = provider.getSigner();
+            contract = new ethers.Contract(contractAddress, contractABI, signer);
+            try {
+                const network = await provider.getNetwork();
+                const addr = await signer.getAddress();
+                currentAccount = addr;
+                document.getElementById('walletInfo').style.display = 'block';
+                document.getElementById('walletInfo').innerText = `已连接: ${addr} | chainId: ${network.chainId}`;
+            } catch (_) {}
+            updateIssueBtnState();
         }
 
         // 计算文件哈希
@@ -273,11 +325,15 @@
             
             document.getElementById('hashResult').innerHTML = 
                 `<div class="info"><strong>文件哈希值:</strong><br><code>${currentFileHash}</code></div>`;
-            document.getElementById('issueBtn').disabled = false;
+            updateIssueBtnState();
         }
 
         // 发行证书
         async function issueCertificate() {
+            if (!contract) {
+                alert('请先连接钱包');
+                return;
+            }
             if (!currentFileHash) {
                 alert('请先计算文件哈希');
                 return;
@@ -308,6 +364,11 @@
                 console.error('发行失败:', error);
                 document.getElementById('status').innerHTML = `<div class="error">❌ 发行失败: ${error.message}</div>`;
             }
+        }
+
+        function updateIssueBtnState() {
+            const canIssue = Boolean(currentFileHash) && Boolean(contract);
+            document.getElementById('issueBtn').disabled = !canIssue;
         }
 
         // 页面加载时初始化
