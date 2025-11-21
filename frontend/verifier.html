@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>验证证书 - 区块链证书系统</title>
  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+ <script src="config.js"></script>
     <style>
         body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
         .back-btn { background: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; margin-bottom: 20px; }
@@ -14,19 +15,28 @@
         .invalid { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
         .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
         .cert-info { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; padding: 10px; margin: 10px 0; }
-    </style>
+</style>
+<link rel="stylesheet" href="styles.css?v=20251121">
 </head>
 <body>
-    <button class="back-btn" onclick="location.href='index.html'">← 返回首页</button>
-    <h1>🔍 验证证书</h1>
-    
-    <p>上传需要验证的证书文件，系统将检查该证书是否在区块链上注册。</p>
-    
-    <input type="file" id="certFile" accept=".pdf,.jpg,.jpeg,.png" style="margin: 10px 0;">
-    <button onclick="verifyCertificate()">验证证书真伪</button>
-    
-    <div id="hashResult"></div>
-    <div id="result"></div>
+    <div class="container">
+      <div class="header">
+        <div class="title">🔍 验证证书</div>
+        <div class="status">
+          <button class="link-btn" onclick="location.href='index.html'">返回首页</button>
+          <span id="netBadge" class="badge" style="display:none"></span>
+        </div>
+      </div>
+      <div class="card" id="verifyCard">
+        <h3>步骤 1：上传需要验证的文件</h3>
+        <div class="form-group">
+          <input type="file" id="certFile" accept=".pdf,.jpg,.jpeg,.png">
+        </div>
+        <div class="row"><button class="btn-primary" onclick="verifyCertificate()" id="verifyBtn" disabled>验证证书真伪</button></div>
+        <div id="hashResult"></div>
+      </div>
+      <div id="result"></div>
+    </div>
 
     <script>
         let provider, contract;
@@ -220,13 +230,45 @@
   } ];
 
         // 初始化以太坊连接（只读模式）
+        const LOCAL_CHAIN_ID_HEX = '0x7A69';
+        const LOCAL_RPC_URL = 'http://127.0.0.1:8545';
+
         async function initEthereum() {
             if (typeof window.ethereum !== 'undefined') {
-                provider = new ethers.BrowserProvider(window.ethereum);
-                contract = new ethers.Contract(contractAddress, contractABI, provider);
+                const currentChain = await window.ethereum.request({ method: 'eth_chainId' });
+                if (currentChain !== LOCAL_CHAIN_ID_HEX) {
+                    try {
+                        await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: LOCAL_CHAIN_ID_HEX }] });
+                    } catch (e) {
+                        if (e && e.code === 4902) {
+                            await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [{ chainId: LOCAL_CHAIN_ID_HEX, chainName: 'Hardhat Local', rpcUrls: [LOCAL_RPC_URL], nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 } }] });
+                        }
+                    }
+                }
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+                await loadAbiIfNeeded();
+                const abiToUse = window.contractABI || contractABI;
+                const addrToUse = ((typeof CONFIG !== 'undefined' && CONFIG.CONTRACT_ADDRESS) ? CONFIG.CONTRACT_ADDRESS : contractAddress).trim();
+                contract = new ethers.Contract(addrToUse, abiToUse, provider);
+                const network = await provider.getNetwork();
+                const netBadge = document.getElementById('netBadge');
+                netBadge.style.display = 'inline-block';
+                netBadge.innerText = `chainId: ${network.chainId}`;
                 console.log("以太坊连接初始化成功");
+                updateVerifyState();
             } else {
                 alert('请安装MetaMask!');
+            }
+        }
+
+        async function loadAbiIfNeeded() {
+            try {
+                if (!window.contractABI && typeof CONFIG !== 'undefined' && CONFIG.ABI_URL) {
+                    const res = await fetch(CONFIG.ABI_URL);
+                    window.contractABI = await res.json();
+                }
+            } catch (e) {
+                console.warn('加载 ABI 失败，使用内置 ABI', e);
             }
         }
 
@@ -250,44 +292,68 @@
                 const fileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
                 
                 document.getElementById('hashResult').innerHTML = 
-                    `<div class="info"><strong>文件哈希值:</strong><br><code>${fileHash}</code></div>`;
+                    `<div class="card"><div class="row"><strong>文件哈希值</strong><button class=\"btn-secondary\" onclick=\"copyText('${fileHash}')\">复制</button></div><div class="code">${fileHash}</div></div>`;
                 
                 // 将哈希字符串转换为bytes32
                 const hashBytes32 = '0x' + fileHash;
                 
-                // 调用合约验证
-                const result = await contract.verifyCertificate(hashBytes32);
-                const [isValid, studentId, studentName, degree, issueDate] = result;
+                // 调用合约查询完整信息
+                const result = await contract.getCertificate(hashBytes32);
+                const [isIssued, studentId, studentName, degree, issueDate, revoked, revokeReason, revokeDate, ipfsCid] = result;
                 
-                if (isValid) {
+                if (isIssued && !revoked) {
                     const date = new Date(Number(issueDate) * 1000).toLocaleString();
                     document.getElementById('result').innerHTML = `
-                        <div class="valid">
+                        <div class="card success">
                             <h3>✅ 证书验证通过！</h3>
-                            <p>该证书为真实有效的区块链存证证书</p>
+                            <div class="card">
+                              <strong>证书信息</strong>
+                              <div>学号: ${studentId}</div>
+                              <div>姓名: ${studentName}</div>
+                              <div>学位: ${degree}</div>
+                              <div>发行时间: ${date}</div>
+                              ${ipfsCid ? `<div>IPFS CID: ${ipfsCid}</div>` : ''}
+                            </div>
                         </div>
-                        <div class="cert-info">
-                            <strong>证书信息:</strong><br>
-                            学号: ${studentId}<br>
-                            姓名: ${studentName}<br>
-                            学位: ${degree}<br>
-                            发行时间: ${date}
+                    `;
+                } else if (isIssued && revoked) {
+                    const rDate = new Date(Number(revokeDate) * 1000).toLocaleString();
+                    document.getElementById('result').innerHTML = `
+                        <div class="card warn">
+                            <h3>⚠️ 证书已撤销</h3>
+                            <div>原因：${revokeReason || '未提供'}</div>
+                            <div>时间：${rDate}</div>
                         </div>
                     `;
                 } else {
                     document.getElementById('result').innerHTML = `
-                        <div class="invalid">
+                        <div class="card error">
                             <h3>❌ 证书验证失败！</h3>
                             <p>该证书未在区块链上注册或已被篡改</p>
-                            <p>请注意：这可能是一份伪造的证书</p>
+                            <p class="hint">可能原因：上传文件与登记文件不一致、尚未发行、网络未连接。</p>
                         </div>
                     `;
                 }
                 
             } catch (error) {
                 console.error('验证失败:', error);
-                document.getElementById('result').innerHTML = `<div class="invalid">验证过程中出错: ${error.message}</div>`;
+                document.getElementById('result').innerHTML = `<div class="card error">验证过程中出错: ${error.message}</div>`;
             }
+        }
+        function updateVerifyState(){
+          const fileInput = document.getElementById('certFile')
+          const btn = document.getElementById('verifyBtn')
+          const card = document.getElementById('verifyCard')
+          const canVerify = fileInput && fileInput.files && fileInput.files.length > 0
+          btn.disabled = !canVerify
+          btn.classList.toggle('enabled', canVerify)
+          card.classList.toggle('enabled', canVerify)
+          card.classList.toggle('disabled', !canVerify)
+        }
+        const cf = document.getElementById('certFile')
+        if (cf) cf.addEventListener('change', updateVerifyState)
+        function copyText(text){
+            navigator.clipboard.writeText(text).catch(()=>{});
         }
 
         // 页面加载时初始化

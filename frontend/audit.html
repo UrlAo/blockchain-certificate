@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>审计事件 - 区块链证书系统</title>
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  <script src="config.js"></script>
+  <link rel="stylesheet" href="styles.css?v=20251121">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="title">🧾 审计事件</div>
+      <div class="status">
+        <button class="link-btn" onclick="location.href='index.html'">返回首页</button>
+        <span id="netBadge" class="badge" style="display:none"></span>
+      </div>
+    </div>
+
+    <div class="card" id="auditCard">
+      <h3>事件列表</h3>
+      <div class="row">
+        <button class="btn-primary" onclick="loadEvents()" id="loadBtn">加载事件</button>
+        <button class="btn-secondary" onclick="exportCSV()" id="csvBtn" disabled>导出 CSV</button>
+        <button class="btn-secondary" onclick="exportJSON()" id="jsonBtn" disabled>导出 JSON</button>
+      </div>
+      <div id="summary" class="hint"></div>
+      <div id="events"></div>
+    </div>
+  </div>
+
+  <script>
+    let provider, contract, cached = []
+    const LOCAL_CHAIN_ID_HEX = '0x7A69'
+    const LOCAL_RPC_URL = 'http://127.0.0.1:8545'
+
+    async function init() {
+      if (typeof window.ethereum === 'undefined') { alert('请安装MetaMask'); return }
+      const currentChain = await window.ethereum.request({ method: 'eth_chainId' })
+      if (currentChain !== LOCAL_CHAIN_ID_HEX) {
+        try {
+          await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: LOCAL_CHAIN_ID_HEX }] })
+        } catch (e) {
+          if (e && e.code === 4902) {
+            await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [{ chainId: LOCAL_CHAIN_ID_HEX, chainName: 'Hardhat Local', rpcUrls: [LOCAL_RPC_URL], nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 } }] })
+          }
+        }
+      }
+      provider = new ethers.providers.Web3Provider(window.ethereum)
+      await provider.send('eth_requestAccounts', [])
+      const network = await provider.getNetwork()
+      const netBadge = document.getElementById('netBadge')
+      netBadge.style.display = 'inline-block'
+      netBadge.innerText = `chainId: ${network.chainId}`
+      const res = await fetch(CONFIG.ABI_URL)
+      const abi = await res.json()
+      contract = new ethers.Contract(CONFIG.CONTRACT_ADDRESS.trim(), abi, provider)
+      document.getElementById('loadBtn').classList.add('enabled')
+      const auditCard = document.getElementById('auditCard')
+      auditCard.classList.add('enabled')
+    }
+
+    async function loadEvents() {
+      if (!contract) await init()
+      const status = document.getElementById('summary')
+      status.innerText = '加载中...'
+      const fromBlock = 0
+      const toBlock = 'latest'
+      let issued = [], revoked = [], added = [], removed = [], batchRoots = []
+      try { issued = await contract.queryFilter(contract.filters.CertificateIssued(), fromBlock, toBlock) } catch(_){}
+      try { revoked = await contract.queryFilter(contract.filters.CertificateRevoked(), fromBlock, toBlock) } catch(_){}
+      try { added = await contract.queryFilter(contract.filters.IssuerAdded(), fromBlock, toBlock) } catch(_){}
+      try { removed = await contract.queryFilter(contract.filters.IssuerRemoved(), fromBlock, toBlock) } catch(_){}
+      try { batchRoots = await contract.queryFilter(contract.filters.BatchRootIssued(), fromBlock, toBlock) } catch(_){}
+
+      cached = []
+      const push = (type, ev) => {
+        cached.push({
+          type,
+          blockNumber: ev.blockNumber,
+          txHash: ev.transactionHash,
+          args: ev.args && Array.from(ev.args)
+        })
+      }
+      issued.forEach(e=>push('CertificateIssued', e))
+      revoked.forEach(e=>push('CertificateRevoked', e))
+      added.forEach(e=>push('IssuerAdded', e))
+      removed.forEach(e=>push('IssuerRemoved', e))
+      batchRoots.forEach(e=>push('BatchRootIssued', e))
+
+      cached.sort((a,b)=>a.blockNumber-b.blockNumber)
+      status.innerText = `共 ${cached.length} 条事件`
+      const rows = cached.length ? cached.map(ev=>`
+        <div class="card">
+          <div class="row"><strong>${ev.type}</strong> <span class="hint">block: ${ev.blockNumber}</span></div>
+          <div class="hint">tx: ${ev.txHash}</div>
+          <div>${renderArgs(ev)}</div>
+        </div>
+      `).join('') : '<div class="card info">当前没有事件记录</div>'
+      document.getElementById('events').innerHTML = rows
+
+      const csvBtn = document.getElementById('csvBtn')
+      const jsonBtn = document.getElementById('jsonBtn')
+      const auditCard = document.getElementById('auditCard')
+      const canExport = cached.length > 0
+      csvBtn.disabled = !canExport
+      jsonBtn.disabled = !canExport
+      csvBtn.classList.toggle('enabled', canExport)
+      jsonBtn.classList.toggle('enabled', canExport)
+      auditCard.classList.toggle('enabled', true)
+    }
+
+    function renderArgs(ev){
+      if (!ev.args) return ''
+      return ev.args.map((v,i)=>`arg${i}: ${v}`).join('<br>')
+    }
+
+    function exportCSV(){
+      if (!cached.length) return
+      const header = ['type','blockNumber','txHash','args']
+      const lines = [header.join(',')].concat(cached.map(e=>`${e.type},${e.blockNumber},${e.txHash},"${(e.args||[]).join('|')}"`))
+      download('events.csv', lines.join('\n'))
+    }
+    function exportJSON(){
+      if (!cached.length) return
+      download('events.json', JSON.stringify(cached, null, 2))
+    }
+    function download(name, content){
+      const blob = new Blob([content], {type:'text/plain;charset=utf-8'})
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = name; a.click();
+      URL.revokeObjectURL(url)
+    }
+
+    window.onload = init
+  </script>
+</body>
+</html>

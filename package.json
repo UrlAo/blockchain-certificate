@@ -6,7 +6,8 @@
   "scripts": {
     "compile": "npx hardhat compile",
     "deploy": "npx hardhat run scripts/deploy.js --network localhost",
-    "test": "npx hardhat test"
+    "test": "npx hardhat test",
+    "start-local": "bash scripts/start-local.sh"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^3.0.0",

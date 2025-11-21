@@ -5,55 +5,60 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>发行证书 - 区块链证书系统</title>
    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+   <script src="config.js"></script>
+   <link rel="stylesheet" href="styles.css?v=20251121">
     <style>
-        body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input, button { width: 100%; padding: 10px; margin-bottom: 10px; }
-        button { background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; }
-        button:disabled { background: #6c757d; }
-        .back-btn { background: #6c757d; width: auto; padding: 8px 16px; }
-        #hashResult, #status { margin: 15px 0; padding: 10px; border-radius: 5px; }
-        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .form-group { margin-bottom: 12px; }
+        input { width: 100%; }
     </style>
 </head>
 <body>
-    <button class="back-btn" onclick="location.href='index.html'">← 返回首页</button>
-    <h1>🎓 发行证书</h1>
-    
-    <div class="form-group">
-        <label for="certFile">选择证书文件 (PDF/图片):</label>
-        <input type="file" id="certFile" accept=".pdf,.jpg,.jpeg,.png">
+    <div class="container">
+      <div class="header">
+        <div class="title">🎓 发行证书</div>
+        <div class="status">
+          <button class="link-btn" onclick="location.href='index.html'">返回首页</button>
+          <button id="connectBtn" class="btn-primary" onclick="connectWallet()">连接钱包</button>
+          <span id="walletBadge" class="badge" style="display:none"></span>
+        </div>
+      </div>
+      <div class="card" id="hashCard">
+        <h3>步骤 1：选择证书文件并计算哈希</h3>
+        <div id="dropZone" class="uploader">拖拽文件到此或点击下方选择</div>
+        <div class="form-group">
+          <input type="file" id="certFile" accept=".pdf,.jpg,.jpeg,.png" >
+        </div>
+        <div class="row">
+          <button id="calcBtn" class="btn-secondary" onclick="calculateHash()" disabled>计算文件哈希</button>
+        </div>
+        <div id="hashResult"></div>
+      </div>
+      <div class="card">
+        <h3>步骤 2：填写证书信息</h3>
+        <div class="grid">
+          <div class="field"><label for="studentId">学号</label><input class="input" type="text" id="studentId" placeholder="例如: 202301001"></div>
+          <div class="field"><label for="studentName">学生姓名</label><input class="input" type="text" id="studentName" placeholder="例如: 张三"></div>
+        </div>
+        <div class="field"><label for="degree">学位信息</label><input class="input" type="text" id="degree" placeholder="例如: 计算机科学学士"></div>
+        <div class="field"><label for="cid">IPFS CID（可选）</label><input class="input" type="text" id="cid" placeholder="例如: bafy..."></div>
+      </div>
+      <div class="card" id="issueCard">
+        <h3>步骤 3：发行到区块链</h3>
+        <div class="row">
+          <button id="issueBtn" class="btn-primary" onclick="issueCertificate()" disabled>发行证书到区块链</button>
+          <button id="revokeBtn" class="btn-secondary" onclick="revokeCurrentCertificate()">撤销当前证书</button>
+          <button id="sigBtn" class="btn-secondary" onclick="issueWithSignature()">签名发行</button>
+        </div>
+        <div id="status" class="hint"></div>
+      </div>
     </div>
-    
-    <div class="form-group">
-        <label for="studentId">学号:</label>
-        <input type="text" id="studentId" placeholder="例如: 202301001">
-    </div>
-    
-    <div class="form-group">
-        <label for="studentName">学生姓名:</label>
-        <input type="text" id="studentName" placeholder="例如: 张三">
-    </div>
-    
-    <div class="form-group">
-        <label for="degree">学位信息:</label>
-        <input type="text" id="degree" placeholder="例如: 计算机科学学士">
-    </div>
-    
-    <button onclick="calculateHash()">计算文件哈希</button>
-    
-    <div id="hashResult"></div>
-    
-    <button id="issueBtn" onclick="issueCertificate()" disabled>发行证书到区块链</button>
-    
-    <div id="status"></div>
 
     <script>
         let currentFileHash = '';
         let provider, signer, contract;
+        let currentAccount = '';
+        const LOCAL_CHAIN_ID_HEX = '0x7A69';
+        const LOCAL_RPC_URL = 'http://127.0.0.1:8545';
         const contractAddress = '0x5FbDB2315678afecb367f032d93F642f64180aa3'; // 部署后替换为实际地址
         const contractABI = [  {
     "inputs": [],
@@ -246,13 +251,69 @@
         // 初始化以太坊连接
         async function initEthereum() {
             if (typeof window.ethereum !== 'undefined') {
-                provider = new ethers.BrowserProvider(window.ethereum);
-                signer = await provider.getSigner();
-                contract = new ethers.Contract(contractAddress, contractABI, signer);
+                const currentChain = await window.ethereum.request({ method: 'eth_chainId' });
+                if (currentChain !== LOCAL_CHAIN_ID_HEX) {
+                    try {
+                        await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: LOCAL_CHAIN_ID_HEX }] });
+                    } catch (e) {
+                        if (e && e.code === 4902) {
+                            await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [{ chainId: LOCAL_CHAIN_ID_HEX, chainName: 'Hardhat Local', rpcUrls: [LOCAL_RPC_URL], nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 } }] });
+                        }
+                    }
+                }
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+                await provider.send('eth_requestAccounts', []);
+                signer = provider.getSigner();
+                await loadAbiIfNeeded();
+                const abiToUse = window.contractABI || contractABI;
+                const addrToUse = ((typeof CONFIG !== 'undefined' && CONFIG.CONTRACT_ADDRESS) ? CONFIG.CONTRACT_ADDRESS : contractAddress).trim();
+                contract = new ethers.Contract(addrToUse, abiToUse, signer);
                 console.log("以太坊连接初始化成功");
+                updateIssueBtnState();
+                updateCalcBtnState();
+                try {
+                    const network = await provider.getNetwork();
+                    const addr = await signer.getAddress();
+                    currentAccount = addr;
+                    const badge = document.getElementById('walletBadge');
+                    badge.style.display = 'inline-block';
+                    badge.innerText = `已连接: ${addr.slice(0,6)}...${addr.slice(-4)} | chainId: ${network.chainId}`;
+                    await showAccountDetails();
+                } catch (_) {}
             } else {
                 alert('请安装MetaMask!');
             }
+        }
+
+        async function connectWallet() {
+            if (typeof window.ethereum === 'undefined') { alert('请安装MetaMask!'); return; }
+            const currentChain = await window.ethereum.request({ method: 'eth_chainId' });
+            if (currentChain !== LOCAL_CHAIN_ID_HEX) {
+                try {
+                    await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: LOCAL_CHAIN_ID_HEX }] });
+                } catch (e) {
+                    if (e && e.code === 4902) {
+                        await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [{ chainId: LOCAL_CHAIN_ID_HEX, chainName: 'Hardhat Local', rpcUrls: [LOCAL_RPC_URL], nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 } }] });
+                    }
+                }
+            }
+            provider = new ethers.providers.Web3Provider(window.ethereum);
+            await provider.send('eth_requestAccounts', []);
+            signer = provider.getSigner();
+            await loadAbiIfNeeded();
+            const abiToUse = window.contractABI || contractABI;
+            const addrToUse = ((typeof CONFIG !== 'undefined' && CONFIG.CONTRACT_ADDRESS) ? CONFIG.CONTRACT_ADDRESS : contractAddress).trim();
+            contract = new ethers.Contract(addrToUse, abiToUse, signer);
+            try {
+                const network = await provider.getNetwork();
+                const addr = await signer.getAddress();
+                currentAccount = addr;
+                const badge = document.getElementById('walletBadge');
+                badge.style.display = 'inline-block';
+                badge.innerText = `已连接: ${addr.slice(0,6)}...${addr.slice(-4)} | chainId: ${network.chainId}`;
+                await showAccountDetails();
+            } catch (_) {}
+            updateIssueBtnState();
         }
 
         // 计算文件哈希
@@ -272,12 +333,43 @@
             currentFileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
             
             document.getElementById('hashResult').innerHTML = 
-                `<div class="info"><strong>文件哈希值:</strong><br><code>${currentFileHash}</code></div>`;
-            document.getElementById('issueBtn').disabled = false;
+                `<div class="card"><div class="row"><strong>文件哈希值</strong><button class="btn-secondary" onclick="copyText('${currentFileHash}')">复制</button></div><div class="code">${currentFileHash}</div></div>`;
+            updateIssueBtnState();
+            updateCalcBtnState();
+        }
+
+
+        function updateCalcBtnState(){
+            console.log('updateCalcBtnState called');
+            const fileInput = document.getElementById('certFile');
+            const calcBtn = document.getElementById('calcBtn');
+            const hashCard = document.getElementById('hashCard');
+            const hasFile = !!(fileInput && ((fileInput.files && fileInput.files.length > 0) || (fileInput.value && fileInput.value.trim().length > 0)));
+            console.log('File Input:', fileInput);
+            console.log('Has File:', hasFile, 'Files Length:', fileInput?.files?.length, 'Input Value:', fileInput?.value);
+            if (!calcBtn) return;
+            if (hasFile) {
+                console.log('Enabling button');
+                calcBtn.disabled = false;
+                calcBtn.removeAttribute('disabled');
+                calcBtn.classList.add('enabled');
+                if (hashCard) { hashCard.classList.add('enabled'); hashCard.classList.remove('disabled'); }
+            } else {
+                console.log('Disabling button');
+                calcBtn.disabled = true;
+                calcBtn.setAttribute('disabled', 'disabled');
+                calcBtn.classList.remove('enabled');
+                if (hashCard) { hashCard.classList.remove('enabled'); hashCard.classList.add('disabled'); }
+            }
         }
 
         // 发行证书
+
         async function issueCertificate() {
+            if (!contract) {
+                alert('请先连接钱包');
+                return;
+            }
             if (!currentFileHash) {
                 alert('请先计算文件哈希');
                 return;
@@ -293,20 +385,186 @@
             }
 
             try {
-                document.getElementById('status').innerHTML = '<div class="info">正在发行证书...</div>';
-                
-                // 将哈希字符串转换为bytes32
                 const hashBytes32 = '0x' + currentFileHash;
-                
-                const tx = await contract.issueCertificate(hashBytes32, studentId, studentName, degree);
-                document.getElementById('status').innerHTML = '<div class="info">交易已提交，等待确认...</div>';
-                
+                const existing = await contract.getCertificate(hashBytes32);
+                if (existing && existing[0] && !existing[5]) {
+                    const issuedAt = new Date(Number(existing[4]) * 1000).toLocaleString();
+                    document.getElementById('status').innerHTML = `<div class="card warn">证书已存在且未撤销，无法重复发行<br>学号: ${existing[1]} | 姓名: ${existing[2]} | 学位: ${existing[3]} | 时间: ${issuedAt}</div>`;
+                    return;
+                }
+                if (existing && existing[0] && existing[5]) {
+                    const revokeAt = new Date(Number(existing[7]) * 1000).toLocaleString();
+                    document.getElementById('status').innerHTML = `<div class="card info">该证书此前已撤销（${revokeAt}），将执行重新发行</div>`;
+                }
+
+                document.getElementById('status').innerHTML = '<div class="card info">正在发行证书...</div>';
+                document.getElementById('issueBtn').disabled = true;
+
+                const cid = document.getElementById('cid').value.trim();
+                let tx;
+                if (cid && typeof contract.issueCertificateWithCid === 'function') {
+                  tx = await contract.issueCertificateWithCid(hashBytes32, studentId, studentName, degree, cid);
+                } else {
+                  tx = await contract.issueCertificate(hashBytes32, studentId, studentName, degree);
+                }
+                document.getElementById('status').innerHTML = `<div class="card info">交易已提交，等待确认<br>txHash: <span class="code">${tx.hash}</span> <button class="btn-secondary" onclick="copyText('${tx.hash}')">复制</button></div>`;
+
                 await tx.wait();
-                document.getElementById('status').innerHTML = '<div class="success">✅ 证书发行成功！</div>';
-                
+                document.getElementById('status').innerHTML = '<div class="card success">✅ 证书发行成功！</div>';
+                document.getElementById('issueBtn').disabled = false;
+
             } catch (error) {
-                console.error('发行失败:', error);
-                document.getElementById('status').innerHTML = `<div class="error">❌ 发行失败: ${error.message}</div>`;
+                document.getElementById('status').innerHTML = `<div class="card error">❌ 发行失败: ${error.message}</div>`;
+                document.getElementById('issueBtn').disabled = false;
+            }
+        }
+
+        function updateIssueBtnState() {
+            const canIssue = Boolean(currentFileHash) && Boolean(contract);
+            const studentId = document.getElementById('studentId').value.trim();
+            const studentName = document.getElementById('studentName').value.trim();
+            const degree = document.getElementById('degree').value.trim();
+            const canRevoke = Boolean(currentFileHash) && Boolean(contract);
+            const canSig = Boolean(currentFileHash) && Boolean(contract) && Boolean(studentId) && Boolean(studentName) && Boolean(degree);
+
+            const issueBtn = document.getElementById('issueBtn');
+            const revokeBtn = document.getElementById('revokeBtn');
+            const sigBtn = document.getElementById('sigBtn');
+            const issueCard = document.getElementById('issueCard');
+
+            issueBtn.disabled = !canIssue;
+            revokeBtn.disabled = !canRevoke;
+            sigBtn.disabled = !canSig;
+
+            issueBtn.classList.toggle('enabled', canIssue);
+            revokeBtn.classList.toggle('enabled', canRevoke);
+            sigBtn.classList.toggle('enabled', canSig);
+
+            const anyEnabled = canIssue || canRevoke || canSig;
+            issueCard.classList.toggle('enabled', anyEnabled);
+            issueCard.classList.toggle('disabled', !anyEnabled);
+        }
+
+        async function showAccountDetails(){
+            try{
+                const bal = await provider.getBalance(currentAccount);
+                const adminAddr = await contract.admin();
+                const isAdmin = adminAddr.toLowerCase() === currentAccount.toLowerCase();
+                const status = document.getElementById('status');
+                status.innerHTML = `<div class="card info">余额: ${Number(ethers.utils.formatEther(bal)).toFixed(4)} ETH | 权限: ${isAdmin? '管理员':'非管理员'}${isAdmin? '':'（仅管理员可发行）'}</div>`;
+            }catch(_){}
+        }
+
+        ['studentId','studentName','degree'].forEach(id=> {
+          const el = document.getElementById(id);
+          if (el) el.addEventListener('input', updateIssueBtnState)
+        })
+
+        function copyText(text){
+            navigator.clipboard.writeText(text).catch(()=>{});
+        }
+
+        const dropZone = document.getElementById('dropZone');
+        if(dropZone){
+          ['dragenter','dragover'].forEach(evt=>dropZone.addEventListener(evt,e=>{e.preventDefault();dropZone.classList.add('drag')}));
+          ['dragleave','drop'].forEach(evt=>dropZone.addEventListener(evt,e=>{e.preventDefault();dropZone.classList.remove('drag')}));
+          dropZone.addEventListener('drop', async (e)=> {
+              const f = e.dataTransfer.files && e.dataTransfer.files[0];
+              if(!f) return;
+              document.getElementById('certFile').files = e.dataTransfer.files;
+              updateCalcBtnState();
+              await calculateHash();
+          });
+        }
+
+        const cf = document.getElementById('certFile');
+        if (cf) {
+          cf.addEventListener('change', updateCalcBtnState);
+          cf.addEventListener('input', updateCalcBtnState);
+        }
+        updateCalcBtnState();
+
+        // 撤销证书（管理员）
+        async function revokeCurrentCertificate(){
+            if (!contract) { alert('请先连接钱包'); return; }
+            if (!currentFileHash) { alert('请先计算文件哈希'); return; }
+            const reason = prompt('请输入撤销原因');
+            if (reason === null) return;
+            try{
+                document.getElementById('status').innerHTML = '<div class="card warn">正在撤销证书...</div>';
+                const hashBytes32 = '0x' + currentFileHash;
+                const tx = await contract.revokeCertificate(hashBytes32, reason);
+                await tx.wait();
+                document.getElementById('status').innerHTML = '<div class="card success">已撤销证书</div>';
+            }catch(e){
+                document.getElementById('status').innerHTML = `<div class="card error">撤销失败: ${e.message}</div>`;
+            }
+        }
+
+        async function issueWithSignature(){
+            if (!contract) { alert('请先连接钱包'); return; }
+            if (!currentFileHash) { alert('请先计算文件哈希'); return; }
+            const studentId = document.getElementById('studentId').value;
+            const studentName = document.getElementById('studentName').value;
+            const degree = document.getElementById('degree').value;
+            const cid = document.getElementById('cid').value.trim();
+            if (!studentId || !studentName || !degree) { alert('请填写所有信息'); return; }
+            try{
+                const hashBytes32 = '0x' + currentFileHash;
+                const existing = await contract.getCertificate(hashBytes32);
+                if (existing && existing[0] && !existing[5]){
+                    const issuedAt = new Date(Number(existing[4]) * 1000).toLocaleString();
+                    document.getElementById('status').innerHTML = `<div class="card warn">证书已存在且未撤销，无法签名重复发行<br>学号: ${existing[1]} | 姓名: ${existing[2]} | 学位: ${existing[3]} | 时间: ${issuedAt}</div>`;
+                    return;
+                }
+                if (existing && existing[0] && existing[5]) {
+                    const revokeAt = new Date(Number(existing[7]) * 1000).toLocaleString();
+                    document.getElementById('status').innerHTML = `<div class="card info">该证书此前已撤销（${revokeAt}），将执行签名重新发行</div>`;
+                }
+                const addr = await signer.getAddress();
+                const nonce = await contract.nonces(addr);
+                const types = {
+                    Certificate: [
+                        { name: 'certHash', type: 'bytes32' },
+                        { name: 'studentId', type: 'string' },
+                        { name: 'studentName', type: 'string' },
+                        { name: 'degree', type: 'string' },
+                        { name: 'ipfsCid', type: 'string' },
+                        { name: 'nonce', type: 'uint256' }
+                    ]
+                };
+                const value = {
+                    certHash: hashBytes32,
+                    studentId,
+                    studentName,
+                    degree,
+                    ipfsCid: cid,
+                    nonce: Number(nonce)
+                };
+                const domain = {
+                    name: 'CertificateRegistry',
+                    version: '1',
+                    chainId: (await provider.getNetwork()).chainId,
+                    verifyingContract: contract.address
+                };
+                const sig = await signer._signTypedData(domain, types, value);
+                document.getElementById('status').innerHTML = '<div class="card info">签名完成，提交交易...</div>';
+                const tx = await contract.issueWithSig(value.certHash, studentId, studentName, degree, cid, Number(nonce), sig);
+                await tx.wait();
+                document.getElementById('status').innerHTML = '<div class="card success">签名发行成功</div>';
+            }catch(e){
+                document.getElementById('status').innerHTML = `<div class="card error">签名发行失败: ${e.message}</div>`;
+            }
+        }
+
+        async function loadAbiIfNeeded() {
+            try {
+                if (!window.contractABI && typeof CONFIG !== 'undefined' && CONFIG.ABI_URL) {
+                    const res = await fetch(CONFIG.ABI_URL);
+                    window.contractABI = await res.json();
+                }
+            } catch (e) {
+                console.warn('加载 ABI 失败，使用内置 ABI', e);
             }
         }
 
