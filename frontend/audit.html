@@ -6,7 +6,7 @@
   <title>审计事件 - 区块链证书系统</title>
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script src="config.js"></script>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20251121">
 </head>
 <body>
   <div class="container">
@@ -18,12 +18,12 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" id="auditCard">
       <h3>事件列表</h3>
       <div class="row">
-        <button class="btn-primary" onclick="loadEvents()">加载事件</button>
-        <button class="btn-secondary" onclick="exportCSV()">导出 CSV</button>
-        <button class="btn-secondary" onclick="exportJSON()">导出 JSON</button>
+        <button class="btn-primary" onclick="loadEvents()" id="loadBtn">加载事件</button>
+        <button class="btn-secondary" onclick="exportCSV()" id="csvBtn" disabled>导出 CSV</button>
+        <button class="btn-secondary" onclick="exportJSON()" id="jsonBtn" disabled>导出 JSON</button>
       </div>
       <div id="summary" class="hint"></div>
       <div id="events"></div>
@@ -56,6 +56,9 @@
       const res = await fetch(CONFIG.ABI_URL)
       const abi = await res.json()
       contract = new ethers.Contract(CONFIG.CONTRACT_ADDRESS.trim(), abi, provider)
+      document.getElementById('loadBtn').classList.add('enabled')
+      const auditCard = document.getElementById('auditCard')
+      auditCard.classList.add('enabled')
     }
 
     async function loadEvents() {
@@ -96,6 +99,16 @@
         </div>
       `).join('') : '<div class="card info">当前没有事件记录</div>'
       document.getElementById('events').innerHTML = rows
+
+      const csvBtn = document.getElementById('csvBtn')
+      const jsonBtn = document.getElementById('jsonBtn')
+      const auditCard = document.getElementById('auditCard')
+      const canExport = cached.length > 0
+      csvBtn.disabled = !canExport
+      jsonBtn.disabled = !canExport
+      csvBtn.classList.toggle('enabled', canExport)
+      jsonBtn.classList.toggle('enabled', canExport)
+      auditCard.classList.toggle('enabled', true)
     }
 
     function renderArgs(ev){

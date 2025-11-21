@@ -16,7 +16,7 @@
         .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
         .cert-info { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; padding: 10px; margin: 10px 0; }
 </style>
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=20251121">
 </head>
 <body>
     <div class="container">
@@ -27,12 +27,12 @@
           <span id="netBadge" class="badge" style="display:none"></span>
         </div>
       </div>
-      <div class="card">
+      <div class="card" id="verifyCard">
         <h3>步骤 1：上传需要验证的文件</h3>
         <div class="form-group">
           <input type="file" id="certFile" accept=".pdf,.jpg,.jpeg,.png">
         </div>
-        <div class="row"><button class="btn-primary" onclick="verifyCertificate()">验证证书真伪</button></div>
+        <div class="row"><button class="btn-primary" onclick="verifyCertificate()" id="verifyBtn" disabled>验证证书真伪</button></div>
         <div id="hashResult"></div>
       </div>
       <div id="result"></div>
@@ -255,6 +255,7 @@
                 netBadge.style.display = 'inline-block';
                 netBadge.innerText = `chainId: ${network.chainId}`;
                 console.log("以太坊连接初始化成功");
+                updateVerifyState();
             } else {
                 alert('请安装MetaMask!');
             }
@@ -339,6 +340,18 @@
                 document.getElementById('result').innerHTML = `<div class="card error">验证过程中出错: ${error.message}</div>`;
             }
         }
+        function updateVerifyState(){
+          const fileInput = document.getElementById('certFile')
+          const btn = document.getElementById('verifyBtn')
+          const card = document.getElementById('verifyCard')
+          const canVerify = fileInput && fileInput.files && fileInput.files.length > 0
+          btn.disabled = !canVerify
+          btn.classList.toggle('enabled', canVerify)
+          card.classList.toggle('enabled', canVerify)
+          card.classList.toggle('disabled', !canVerify)
+        }
+        const cf = document.getElementById('certFile')
+        if (cf) cf.addEventListener('change', updateVerifyState)
         function copyText(text){
             navigator.clipboard.writeText(text).catch(()=>{});
         }

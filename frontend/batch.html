@@ -6,7 +6,7 @@
   <title>批量登记 - 区块链证书系统</title>
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script src="config.js"></script>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20251121">
 </head>
 <body>
   <div class="container">
@@ -18,7 +18,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" id="submitCard">
       <h3>步骤 1：选择批量文件</h3>
       <input type="file" id="files" multiple accept=".pdf,.jpg,.jpeg,.png" />
       <div class="row">
@@ -36,11 +36,11 @@
       <div id="status" class="hint"></div>
     </div>
 
-    <div class="card">
+    <div class="card" id="proofCard">
       <h3>步骤 3：单文件证明验证</h3>
       <div class="field"><label for="proofFile">选择文件生成证明</label><input type="file" id="proofFile" accept=".pdf,.jpg,.jpeg,.png" /></div>
       <div class="row">
-        <button class="btn-secondary" onclick="genAndVerifyProof()">生成并验证证明</button>
+        <button class="btn-secondary" onclick="genAndVerifyProof()" id="proofBtn" disabled>生成并验证证明</button>
       </div>
       <div id="proofBox"></div>
     </div>
@@ -63,6 +63,7 @@
       const res = await fetch(CONFIG.ABI_URL)
       const abi = await res.json()
       contract = new ethers.Contract(CONFIG.CONTRACT_ADDRESS.trim(), abi, signer)
+      updateButtons()
     }
 
     async function computeSha256(file){
@@ -103,6 +104,7 @@
       }
       document.getElementById('rootBox').innerHTML = `<div class="card"><div class="row"><strong>Merkle Root</strong><button class="btn-secondary" onclick=\"copyText('${root}')\">复制</button></div><div class="code">${root}</div></div>`
       document.getElementById('submitBtn').disabled = false
+      updateButtons()
     }
 
     async function submitRoot(){
@@ -155,6 +157,29 @@
       const ok = await contract.verifyLeaf(root, leaf, proof)
       document.getElementById('proofBox').innerHTML = ok ? '<div class="card success">✅ 证明验证通过</div>' : '<div class="card error">❌ 证明验证失败</div>'
     }
+
+    function updateButtons(){
+      const submitBtn = document.getElementById('submitBtn')
+      const submitCard = document.getElementById('submitCard')
+      const proofBtn = document.getElementById('proofBtn')
+      const proofCard = document.getElementById('proofCard')
+      const pf = document.getElementById('proofFile')
+
+      const canSubmit = Boolean(root) && Boolean(contract)
+      const canProof = Boolean(root) && pf && pf.files && pf.files.length > 0
+
+      submitBtn.classList.toggle('enabled', canSubmit)
+      submitCard.classList.toggle('enabled', canSubmit)
+      submitCard.classList.toggle('disabled', !canSubmit)
+
+      proofBtn.disabled = !canProof
+      proofBtn.classList.toggle('enabled', canProof)
+      proofCard.classList.toggle('enabled', canProof)
+      proofCard.classList.toggle('disabled', !canProof)
+    }
+
+    const pfInput = document.getElementById('proofFile')
+    if (pfInput) pfInput.addEventListener('change', updateButtons)
 
     function copyText(text){ navigator.clipboard.writeText(text).catch(()=>{}) }
     window.onload = init

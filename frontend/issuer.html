@@ -6,7 +6,7 @@
     <title>发行证书 - 区块链证书系统</title>
    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
    <script src="config.js"></script>
-   <link rel="stylesheet" href="styles.css">
+   <link rel="stylesheet" href="styles.css?v=20251121">
     <style>
         .form-group { margin-bottom: 12px; }
         input { width: 100%; }
@@ -22,14 +22,14 @@
           <span id="walletBadge" class="badge" style="display:none"></span>
         </div>
       </div>
-      <div class="card">
+      <div class="card" id="hashCard">
         <h3>步骤 1：选择证书文件并计算哈希</h3>
         <div id="dropZone" class="uploader">拖拽文件到此或点击下方选择</div>
         <div class="form-group">
-          <input type="file" id="certFile" accept=".pdf,.jpg,.jpeg,.png">
+          <input type="file" id="certFile" accept=".pdf,.jpg,.jpeg,.png" >
         </div>
         <div class="row">
-          <button class="btn-secondary" onclick="calculateHash()">计算文件哈希</button>
+          <button id="calcBtn" class="btn-secondary" onclick="calculateHash()" disabled>计算文件哈希</button>
         </div>
         <div id="hashResult"></div>
       </div>
@@ -42,12 +42,12 @@
         <div class="field"><label for="degree">学位信息</label><input class="input" type="text" id="degree" placeholder="例如: 计算机科学学士"></div>
         <div class="field"><label for="cid">IPFS CID（可选）</label><input class="input" type="text" id="cid" placeholder="例如: bafy..."></div>
       </div>
-      <div class="card">
+      <div class="card" id="issueCard">
         <h3>步骤 3：发行到区块链</h3>
         <div class="row">
           <button id="issueBtn" class="btn-primary" onclick="issueCertificate()" disabled>发行证书到区块链</button>
-          <button class="btn-secondary" onclick="revokeCurrentCertificate()">撤销当前证书</button>
-          <button class="btn-secondary" onclick="issueWithSignature()">签名发行</button>
+          <button id="revokeBtn" class="btn-secondary" onclick="revokeCurrentCertificate()">撤销当前证书</button>
+          <button id="sigBtn" class="btn-secondary" onclick="issueWithSignature()">签名发行</button>
         </div>
         <div id="status" class="hint"></div>
       </div>
@@ -270,6 +270,7 @@
                 contract = new ethers.Contract(addrToUse, abiToUse, signer);
                 console.log("以太坊连接初始化成功");
                 updateIssueBtnState();
+                updateCalcBtnState();
                 try {
                     const network = await provider.getNetwork();
                     const addr = await signer.getAddress();
@@ -334,9 +335,12 @@
             document.getElementById('hashResult').innerHTML = 
                 `<div class="card"><div class="row"><strong>文件哈希值</strong><button class="btn-secondary" onclick=\"copyText('${currentFileHash}')\">复制</button></div><div class="code">${currentFileHash}</div></div>`;
             updateIssueBtnState();
+            updateCalcBtnState();
         }
 
+
         // 发行证书
+
         async function issueCertificate() {
             if (!contract) {
                 alert('请先连接钱包');
@@ -389,7 +393,28 @@
 
         function updateIssueBtnState() {
             const canIssue = Boolean(currentFileHash) && Boolean(contract);
-            document.getElementById('issueBtn').disabled = !canIssue;
+            const studentId = document.getElementById('studentId').value.trim();
+            const studentName = document.getElementById('studentName').value.trim();
+            const degree = document.getElementById('degree').value.trim();
+            const canRevoke = Boolean(currentFileHash) && Boolean(contract);
+            const canSig = Boolean(currentFileHash) && Boolean(contract) && Boolean(studentId) && Boolean(studentName) && Boolean(degree);
+
+            const issueBtn = document.getElementById('issueBtn');
+            const revokeBtn = document.getElementById('revokeBtn');
+            const sigBtn = document.getElementById('sigBtn');
+            const issueCard = document.getElementById('issueCard');
+
+            issueBtn.disabled = !canIssue;
+            revokeBtn.disabled = !canRevoke;
+            sigBtn.disabled = !canSig;
+
+            issueBtn.classList.toggle('enabled', canIssue);
+            revokeBtn.classList.toggle('enabled', canRevoke);
+            sigBtn.classList.toggle('enabled', canSig);
+
+            const anyEnabled = canIssue || canRevoke || canSig;
+            issueCard.classList.toggle('enabled', anyEnabled);
+            issueCard.classList.toggle('disabled', !anyEnabled);
         }
 
         async function showAccountDetails(){
@@ -401,6 +426,11 @@
                 status.innerHTML = `<div class="card info">余额: ${Number(ethers.utils.formatEther(bal)).toFixed(4)} ETH | 权限: ${isAdmin? '管理员':'非管理员'}${isAdmin? '':'（仅管理员可发行）'}</div>`;
             }catch(_){}
         }
+
+        ['studentId','studentName','degree'].forEach(id=>{
+          const el = document.getElementById(id);
+          if (el) el.addEventListener('input', updateIssueBtnState)
+        })
 
         function copyText(text){
             navigator.clipboard.writeText(text).catch(()=>{});
@@ -414,9 +444,17 @@
               const f = e.dataTransfer.files && e.dataTransfer.files[0];
               if(!f) return;
               document.getElementById('certFile').files = e.dataTransfer.files;
+              updateCalcBtnState();
               await calculateHash();
           });
         }
+
+        const cf = document.getElementById('certFile');
+        if (cf) {
+          cf.addEventListener('change', updateCalcBtnState);
+          cf.addEventListener('input', updateCalcBtnState);
+        }
+        updateCalcBtnState();
 
         // 撤销证书（管理员）
         async function revokeCurrentCertificate(){
@@ -503,3 +541,24 @@
     </script>
 </body>
 </html>
+        function updateCalcBtnState(){
+            const fileInput = document.getElementById('certFile');
+            const calcBtn = document.getElementById('calcBtn');
+            const hashCard = document.getElementById('hashCard');
+            const hasFile = !!(fileInput && ((fileInput.files && fileInput.files.length > 0) || (fileInput.value && fileInput.value.trim().length > 0)));
+            if (!calcBtn) return;
+            if (hasFile) {
+                calcBtn.disabled = false;
+                calcBtn.removeAttribute('disabled');
+                calcBtn.classList.add('enabled');
+                if (hashCard) { hashCard.classList.add('enabled'); hashCard.classList.remove('disabled'); }
+            } else {
+                calcBtn.disabled = true;
+                calcBtn.setAttribute('disabled', 'disabled');
+                calcBtn.classList.remove('enabled');
+                if (hashCard) { hashCard.classList.remove('enabled'); hashCard.classList.add('disabled'); }
+            }
+        }
+        function handleFileChange(e){
+            updateCalcBtnState();
+        }
