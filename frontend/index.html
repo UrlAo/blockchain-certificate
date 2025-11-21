@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>区块链证书存证系统</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .header { text-align: center; margin-bottom: 40px; }
+        .nav { display: flex; justify-content: center; gap: 20px; }
+        .btn { padding: 15px 30px; font-size: 16px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        .btn:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📜 区块链证书存证系统</h1>
+        <p>基于区块链技术的防伪证书发行与验证平台</p>
+    </div>
+    
+    <div class="nav">
+        <button class="btn" onclick="location.href='issuer.html'">🎓 发行证书</button>
+        <button class="btn" onclick="location.href='verifier.html'">🔍 验证证书</button>
+    </div>
+    
+    <div style="margin-top: 40px;">
+        <h3>系统说明：</h3>
+        <ul>
+            <li><strong>发行证书</strong>: 教育机构可以将学历证书的哈希值永久存储在区块链上</li>
+            <li><strong>验证证书</strong>: 任何人都可以验证证书的真实性，防止伪造</li>
+            <li><strong>安全可靠</strong>: 基于区块链技术，数据不可篡改</li>
+        </ul>
+    </div>
+
+    <script>
+        // 检查是否安装了MetaMask
+        if (typeof window.ethereum === 'undefined') {
+            alert('请安装MetaMask钱包扩展程序！');
+        }
+    </script>
+</body>
+</html>

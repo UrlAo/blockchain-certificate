@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>验证证书 - 区块链证书系统</title>
+ <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .back-btn { background: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; margin-bottom: 20px; }
+        button { background: #007bff; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; width: 100%; margin: 10px 0; }
+        #result { margin: 20px 0; padding: 15px; border-radius: 5px; }
+        .valid { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .invalid { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .cert-info { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; padding: 10px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <button class="back-btn" onclick="location.href='index.html'">← 返回首页</button>
+    <h1>🔍 验证证书</h1>
+    
+    <p>上传需要验证的证书文件，系统将检查该证书是否在区块链上注册。</p>
+    
+    <input type="file" id="certFile" accept=".pdf,.jpg,.jpeg,.png" style="margin: 10px 0;">
+    <button onclick="verifyCertificate()">验证证书真伪</button>
+    
+    <div id="hashResult"></div>
+    <div id="result"></div>
+
+    <script>
+        let provider, contract;
+        const contractAddress = '0x5FbDB2315678afecb367f032d93F642f64180aa3'; // 部署后替换为实际地址
+        const contractABI = [  {
+    "inputs": [],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "certHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "studentId",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "studentName",
+        "type": "string"
+      }
+    ],
+    "name": "CertificateIssued",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "certHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "isValid",
+        "type": "bool"
+      }
+    ],
+    "name": "CertificateVerified",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "admin",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "certificates",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "studentId",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "studentName",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "degree",
+        "type": "string"
+      },
+      {
+        "internalType": "uint256",
+        "name": "issueDate",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "isIssued",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "_certHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "string",
+        "name": "_studentId",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "_studentName",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "_degree",
+        "type": "string"
+      }
+    ],
+    "name": "issueCertificate",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "_certHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "simpleVerify",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "_certHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "verifyCertificate",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      },
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  } ];
+
+        // 初始化以太坊连接（只读模式）
+        async function initEthereum() {
+            if (typeof window.ethereum !== 'undefined') {
+                provider = new ethers.BrowserProvider(window.ethereum);
+                contract = new ethers.Contract(contractAddress, contractABI, provider);
+                console.log("以太坊连接初始化成功");
+            } else {
+                alert('请安装MetaMask!');
+            }
+        }
+
+        // 验证证书
+        async function verifyCertificate() {
+            const fileInput = document.getElementById('certFile');
+            if (!fileInput.files[0]) {
+                alert('请选择要验证的文件');
+                return;
+            }
+
+            try {
+                document.getElementById('result').innerHTML = '<div class="info">正在验证...</div>';
+                
+                const file = fileInput.files[0];
+                const arrayBuffer = await file.arrayBuffer();
+                
+                // 计算SHA-256哈希
+                const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+                const hashArray = Array.from(new Uint8Array(hashBuffer));
+                const fileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+                
+                document.getElementById('hashResult').innerHTML = 
+                    `<div class="info"><strong>文件哈希值:</strong><br><code>${fileHash}</code></div>`;
+                
+                // 将哈希字符串转换为bytes32
+                const hashBytes32 = '0x' + fileHash;
+                
+                // 调用合约验证
+                const result = await contract.verifyCertificate(hashBytes32);
+                const [isValid, studentId, studentName, degree, issueDate] = result;
+                
+                if (isValid) {
+                    const date = new Date(Number(issueDate) * 1000).toLocaleString();
+                    document.getElementById('result').innerHTML = `
+                        <div class="valid">
+                            <h3>✅ 证书验证通过！</h3>
+                            <p>该证书为真实有效的区块链存证证书</p>
+                        </div>
+                        <div class="cert-info">
+                            <strong>证书信息:</strong><br>
+                            学号: ${studentId}<br>
+                            姓名: ${studentName}<br>
+                            学位: ${degree}<br>
+                            发行时间: ${date}
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('result').innerHTML = `
+                        <div class="invalid">
+                            <h3>❌ 证书验证失败！</h3>
+                            <p>该证书未在区块链上注册或已被篡改</p>
+                            <p>请注意：这可能是一份伪造的证书</p>
+                        </div>
+                    `;
+                }
+                
+            } catch (error) {
+                console.error('验证失败:', error);
+                document.getElementById('result').innerHTML = `<div class="invalid">验证过程中出错: ${error.message}</div>`;
+            }
+        }
+
+        // 页面加载时初始化
+        window.onload = initEthereum;
+    </script>
+</body>
+</html>
