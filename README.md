@@ -42,6 +42,13 @@
    ```
 5. 打开浏览器访问 `http://localhost:8080/`，在 MetaMask 选择 `Localhost 8545` 网络。
 
+### 一键启动（推荐）
+```bash
+npm run start-local
+```
+- 自动启动本地链（若未运行）、部署合约并解析地址、写入 `frontend/config.js`、启动前端并打开浏览器。
+- 日志输出位置：`.logs/`；进程 PID：`.pids/`。
+
 ## 部署与前端配置
 - 将部署得到的合约地址写入：
   - `frontend/config.js` 的 `CONTRACT_ADDRESS`
