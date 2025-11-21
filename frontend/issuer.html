@@ -6,6 +6,7 @@
     <title>发行证书 - 区块链证书系统</title>
    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
    <script src="config.js"></script>
+   <link rel="stylesheet" href="styles.css">
     <style>
         body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
         .form-group { margin-bottom: 15px; }
@@ -21,40 +22,42 @@
     </style>
 </head>
 <body>
-    <button class="back-btn" onclick="location.href='index.html'">← 返回首页</button>
-    <h1>🎓 发行证书</h1>
-    <div class="form-group">
-        <button id="connectBtn" onclick="connectWallet()">连接钱包</button>
-        <div id="walletInfo" class="info" style="display:none"></div>
+    <div class="container">
+      <div class="header">
+        <div class="title">🎓 发行证书</div>
+        <div class="status">
+          <button class="link-btn" onclick="location.href='index.html'">返回首页</button>
+          <button id="connectBtn" class="btn-primary" onclick="connectWallet()">连接钱包</button>
+          <span id="walletBadge" class="badge" style="display:none"></span>
+        </div>
+      </div>
+      <div class="card">
+        <h3>步骤 1：选择证书文件并计算哈希</h3>
+        <div id="dropZone" class="uploader">拖拽文件到此或点击下方选择</div>
+        <div class="form-group">
+          <input type="file" id="certFile" accept=".pdf,.jpg,.jpeg,.png">
+        </div>
+        <div class="row">
+          <button class="btn-secondary" onclick="calculateHash()">计算文件哈希</button>
+        </div>
+        <div id="hashResult"></div>
+      </div>
+      <div class="card">
+        <h3>步骤 2：填写证书信息</h3>
+        <div class="grid">
+          <div class="field"><label for="studentId">学号</label><input class="input" type="text" id="studentId" placeholder="例如: 202301001"></div>
+          <div class="field"><label for="studentName">学生姓名</label><input class="input" type="text" id="studentName" placeholder="例如: 张三"></div>
+        </div>
+        <div class="field"><label for="degree">学位信息</label><input class="input" type="text" id="degree" placeholder="例如: 计算机科学学士"></div>
+      </div>
+      <div class="card">
+        <h3>步骤 3：发行到区块链</h3>
+        <div class="row">
+          <button id="issueBtn" class="btn-primary" onclick="issueCertificate()" disabled>发行证书到区块链</button>
+        </div>
+        <div id="status" class="hint"></div>
+      </div>
     </div>
-    
-    <div class="form-group">
-        <label for="certFile">选择证书文件 (PDF/图片):</label>
-        <input type="file" id="certFile" accept=".pdf,.jpg,.jpeg,.png">
-    </div>
-    
-    <div class="form-group">
-        <label for="studentId">学号:</label>
-        <input type="text" id="studentId" placeholder="例如: 202301001">
-    </div>
-    
-    <div class="form-group">
-        <label for="studentName">学生姓名:</label>
-        <input type="text" id="studentName" placeholder="例如: 张三">
-    </div>
-    
-    <div class="form-group">
-        <label for="degree">学位信息:</label>
-        <input type="text" id="degree" placeholder="例如: 计算机科学学士">
-    </div>
-    
-    <button onclick="calculateHash()">计算文件哈希</button>
-    
-    <div id="hashResult"></div>
-    
-    <button id="issueBtn" onclick="issueCertificate()" disabled>发行证书到区块链</button>
-    
-    <div id="status"></div>
 
     <script>
         let currentFileHash = '';
@@ -277,8 +280,10 @@
                     const network = await provider.getNetwork();
                     const addr = await signer.getAddress();
                     currentAccount = addr;
-                    document.getElementById('walletInfo').style.display = 'block';
-                    document.getElementById('walletInfo').innerText = `已连接: ${addr} | chainId: ${network.chainId}`;
+                    const badge = document.getElementById('walletBadge');
+                    badge.style.display = 'inline-block';
+                    badge.innerText = `已连接: ${addr.slice(0,6)}...${addr.slice(-4)} | chainId: ${network.chainId}`;
+                    await showAccountDetails();
                 } catch (_) {}
             } else {
                 alert('请安装MetaMask!');
@@ -308,8 +313,10 @@
                 const network = await provider.getNetwork();
                 const addr = await signer.getAddress();
                 currentAccount = addr;
-                document.getElementById('walletInfo').style.display = 'block';
-                document.getElementById('walletInfo').innerText = `已连接: ${addr} | chainId: ${network.chainId}`;
+                const badge = document.getElementById('walletBadge');
+                badge.style.display = 'inline-block';
+                badge.innerText = `已连接: ${addr.slice(0,6)}...${addr.slice(-4)} | chainId: ${network.chainId}`;
+                await showAccountDetails();
             } catch (_) {}
             updateIssueBtnState();
         }
@@ -331,7 +338,7 @@
             currentFileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
             
             document.getElementById('hashResult').innerHTML = 
-                `<div class="info"><strong>文件哈希值:</strong><br><code>${currentFileHash}</code></div>`;
+                `<div class="card"><div class="row"><strong>文件哈希值</strong><button class="btn-secondary" onclick=\"copyText('${currentFileHash}')\">复制</button></div><div class="code">${currentFileHash}</div></div>`;
             updateIssueBtnState();
         }
 
@@ -356,26 +363,55 @@
             }
 
             try {
-                document.getElementById('status').innerHTML = '<div class="info">正在发行证书...</div>';
+                document.getElementById('status').innerHTML = '<div class="card info">正在发行证书...</div>';
+                document.getElementById('issueBtn').disabled = true;
                 
                 // 将哈希字符串转换为bytes32
                 const hashBytes32 = '0x' + currentFileHash;
                 
                 const tx = await contract.issueCertificate(hashBytes32, studentId, studentName, degree);
-                document.getElementById('status').innerHTML = '<div class="info">交易已提交，等待确认...</div>';
+                document.getElementById('status').innerHTML = `<div class="card info">交易已提交，等待确认<br>txHash: <span class="code">${tx.hash}</span> <button class="btn-secondary" onclick=\"copyText('${tx.hash}')\">复制</button></div>`;
                 
                 await tx.wait();
-                document.getElementById('status').innerHTML = '<div class="success">✅ 证书发行成功！</div>';
+                document.getElementById('status').innerHTML = '<div class="card success">✅ 证书发行成功！</div>';
+                document.getElementById('issueBtn').disabled = false;
                 
             } catch (error) {
                 console.error('发行失败:', error);
-                document.getElementById('status').innerHTML = `<div class="error">❌ 发行失败: ${error.message}</div>`;
+                document.getElementById('status').innerHTML = `<div class="card error">❌ 发行失败: ${error.message}</div>`;
+                document.getElementById('issueBtn').disabled = false;
             }
         }
 
         function updateIssueBtnState() {
             const canIssue = Boolean(currentFileHash) && Boolean(contract);
             document.getElementById('issueBtn').disabled = !canIssue;
+        }
+
+        async function showAccountDetails(){
+            try{
+                const bal = await provider.getBalance(currentAccount);
+                const adminAddr = await contract.admin();
+                const isAdmin = adminAddr.toLowerCase() === currentAccount.toLowerCase();
+                const status = document.getElementById('status');
+                status.innerHTML = `<div class="card info">余额: ${Number(ethers.utils.formatEther(bal)).toFixed(4)} ETH | 权限: ${isAdmin? '管理员':'非管理员'}${isAdmin? '':'（仅管理员可发行）'}</div>`;
+            }catch(_){}
+        }
+
+        function copyText(text){
+            navigator.clipboard.writeText(text).catch(()=>{});
+        }
+
+        const dropZone = document.getElementById('dropZone');
+        if(dropZone){
+          ['dragenter','dragover'].forEach(evt=>dropZone.addEventListener(evt,e=>{e.preventDefault();dropZone.classList.add('drag')}));
+          ['dragleave','drop'].forEach(evt=>dropZone.addEventListener(evt,e=>{e.preventDefault();dropZone.classList.remove('drag')}));
+          dropZone.addEventListener('drop', async (e)=>{
+              const f = e.dataTransfer.files && e.dataTransfer.files[0];
+              if(!f) return;
+              document.getElementById('certFile').files = e.dataTransfer.files;
+              await calculateHash();
+          });
         }
 
         async function loadAbiIfNeeded() {

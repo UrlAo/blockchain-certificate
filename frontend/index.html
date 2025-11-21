@@ -13,23 +13,31 @@
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>📜 区块链证书存证系统</h1>
-        <p>基于区块链技术的防伪证书发行与验证平台</p>
-    </div>
-    
-    <div class="nav">
-        <button class="btn" onclick="location.href='issuer.html'">🎓 发行证书</button>
-        <button class="btn" onclick="location.href='verifier.html'">🔍 验证证书</button>
-    </div>
-    
-    <div style="margin-top: 40px;">
-        <h3>系统说明：</h3>
-        <ul>
-            <li><strong>发行证书</strong>: 教育机构可以将学历证书的哈希值永久存储在区块链上</li>
-            <li><strong>验证证书</strong>: 任何人都可以验证证书的真实性，防止伪造</li>
-            <li><strong>安全可靠</strong>: 基于区块链技术，数据不可篡改</li>
+    <link rel="stylesheet" href="styles.css">
+    <div class="container">
+      <div class="header">
+        <div class="title">📜 区块链证书存证系统</div>
+      </div>
+      <div class="grid">
+        <div class="card">
+          <h3>🎓 发行证书</h3>
+          <p class="hint">连接钱包、选择文件计算哈希、填写信息并发行到本地链。</p>
+          <button class="btn-primary" onclick="location.href='issuer.html'">进入发行</button>
+        </div>
+        <div class="card">
+          <h3>🔍 验证证书</h3>
+          <p class="hint">上传证书文件，系统计算哈希并校验链上记录。</p>
+          <button class="btn-secondary" onclick="location.href='verifier.html'">进入验证</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>快速提示</h3>
+        <ul class="hint">
+          <li>首次连接会自动尝试切换到本地网络（chainId: 31337）。</li>
+          <li>发行需要管理员账户（部署者）；验证对任意账户开放。</li>
+          <li>若遇到余额不足或网络不匹配，请在钱包中切换到本地网络。</li>
         </ul>
+      </div>
     </div>
 
     <script>
