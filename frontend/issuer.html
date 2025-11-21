@@ -333,11 +333,35 @@
             currentFileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
             
             document.getElementById('hashResult').innerHTML = 
-                `<div class="card"><div class="row"><strong>文件哈希值</strong><button class="btn-secondary" onclick=\"copyText('${currentFileHash}')\">复制</button></div><div class="code">${currentFileHash}</div></div>`;
+                `<div class="card"><div class="row"><strong>文件哈希值</strong><button class="btn-secondary" onclick="copyText('${currentFileHash}')">复制</button></div><div class="code">${currentFileHash}</div></div>`;
             updateIssueBtnState();
             updateCalcBtnState();
         }
 
+
+        function updateCalcBtnState(){
+            console.log('updateCalcBtnState called');
+            const fileInput = document.getElementById('certFile');
+            const calcBtn = document.getElementById('calcBtn');
+            const hashCard = document.getElementById('hashCard');
+            const hasFile = !!(fileInput && ((fileInput.files && fileInput.files.length > 0) || (fileInput.value && fileInput.value.trim().length > 0)));
+            console.log('File Input:', fileInput);
+            console.log('Has File:', hasFile, 'Files Length:', fileInput?.files?.length, 'Input Value:', fileInput?.value);
+            if (!calcBtn) return;
+            if (hasFile) {
+                console.log('Enabling button');
+                calcBtn.disabled = false;
+                calcBtn.removeAttribute('disabled');
+                calcBtn.classList.add('enabled');
+                if (hashCard) { hashCard.classList.add('enabled'); hashCard.classList.remove('disabled'); }
+            } else {
+                console.log('Disabling button');
+                calcBtn.disabled = true;
+                calcBtn.setAttribute('disabled', 'disabled');
+                calcBtn.classList.remove('enabled');
+                if (hashCard) { hashCard.classList.remove('enabled'); hashCard.classList.add('disabled'); }
+            }
+        }
 
         // 发行证书
 
@@ -379,7 +403,7 @@
                 } else {
                   tx = await contract.issueCertificate(hashBytes32, studentId, studentName, degree);
                 }
-                document.getElementById('status').innerHTML = `<div class="card info">交易已提交，等待确认<br>txHash: <span class="code">${tx.hash}</span> <button class="btn-secondary" onclick=\"copyText('${tx.hash}')\">复制</button></div>`;
+                document.getElementById('status').innerHTML = `<div class="card info">交易已提交，等待确认<br>txHash: <span class="code">${tx.hash}</span> <button class="btn-secondary" onclick="copyText('${tx.hash}')">复制</button></div>`;
 
                 await tx.wait();
                 document.getElementById('status').innerHTML = '<div class="card success">✅ 证书发行成功！</div>';
@@ -427,7 +451,7 @@
             }catch(_){}
         }
 
-        ['studentId','studentName','degree'].forEach(id=>{
+        ['studentId','studentName','degree'].forEach(id=> {
           const el = document.getElementById(id);
           if (el) el.addEventListener('input', updateIssueBtnState)
         })
@@ -440,7 +464,7 @@
         if(dropZone){
           ['dragenter','dragover'].forEach(evt=>dropZone.addEventListener(evt,e=>{e.preventDefault();dropZone.classList.add('drag')}));
           ['dragleave','drop'].forEach(evt=>dropZone.addEventListener(evt,e=>{e.preventDefault();dropZone.classList.remove('drag')}));
-          dropZone.addEventListener('drop', async (e)=>{
+          dropZone.addEventListener('drop', async (e)=> {
               const f = e.dataTransfer.files && e.dataTransfer.files[0];
               if(!f) return;
               document.getElementById('certFile').files = e.dataTransfer.files;
@@ -541,24 +565,3 @@
     </script>
 </body>
 </html>
-        function updateCalcBtnState(){
-            const fileInput = document.getElementById('certFile');
-            const calcBtn = document.getElementById('calcBtn');
-            const hashCard = document.getElementById('hashCard');
-            const hasFile = !!(fileInput && ((fileInput.files && fileInput.files.length > 0) || (fileInput.value && fileInput.value.trim().length > 0)));
-            if (!calcBtn) return;
-            if (hasFile) {
-                calcBtn.disabled = false;
-                calcBtn.removeAttribute('disabled');
-                calcBtn.classList.add('enabled');
-                if (hashCard) { hashCard.classList.add('enabled'); hashCard.classList.remove('disabled'); }
-            } else {
-                calcBtn.disabled = true;
-                calcBtn.setAttribute('disabled', 'disabled');
-                calcBtn.classList.remove('enabled');
-                if (hashCard) { hashCard.classList.remove('enabled'); hashCard.classList.add('disabled'); }
-            }
-        }
-        function handleFileChange(e){
-            updateCalcBtnState();
-        }
