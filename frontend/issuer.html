@@ -387,10 +387,14 @@
             try {
                 const hashBytes32 = '0x' + currentFileHash;
                 const existing = await contract.getCertificate(hashBytes32);
-                if (existing && existing[0]) {
+                if (existing && existing[0] && !existing[5]) {
                     const issuedAt = new Date(Number(existing[4]) * 1000).toLocaleString();
-                    document.getElementById('status').innerHTML = `<div class="card warn">证书已存在，无法重复发行<br>学号: ${existing[1]} | 姓名: ${existing[2]} | 学位: ${existing[3]} | 时间: ${issuedAt}</div>`;
+                    document.getElementById('status').innerHTML = `<div class="card warn">证书已存在且未撤销，无法重复发行<br>学号: ${existing[1]} | 姓名: ${existing[2]} | 学位: ${existing[3]} | 时间: ${issuedAt}</div>`;
                     return;
+                }
+                if (existing && existing[0] && existing[5]) {
+                    const revokeAt = new Date(Number(existing[7]) * 1000).toLocaleString();
+                    document.getElementById('status').innerHTML = `<div class="card info">该证书此前已撤销（${revokeAt}），将执行重新发行</div>`;
                 }
 
                 document.getElementById('status').innerHTML = '<div class="card info">正在发行证书...</div>';
@@ -508,10 +512,14 @@
             try{
                 const hashBytes32 = '0x' + currentFileHash;
                 const existing = await contract.getCertificate(hashBytes32);
-                if (existing && existing[0]){
+                if (existing && existing[0] && !existing[5]){
                     const issuedAt = new Date(Number(existing[4]) * 1000).toLocaleString();
-                    document.getElementById('status').innerHTML = `<div class="card warn">证书已存在，无法签名重复发行<br>学号: ${existing[1]} | 姓名: ${existing[2]} | 学位: ${existing[3]} | 时间: ${issuedAt}</div>`;
+                    document.getElementById('status').innerHTML = `<div class="card warn">证书已存在且未撤销，无法签名重复发行<br>学号: ${existing[1]} | 姓名: ${existing[2]} | 学位: ${existing[3]} | 时间: ${issuedAt}</div>`;
                     return;
+                }
+                if (existing && existing[0] && existing[5]) {
+                    const revokeAt = new Date(Number(existing[7]) * 1000).toLocaleString();
+                    document.getElementById('status').innerHTML = `<div class="card info">该证书此前已撤销（${revokeAt}），将执行签名重新发行</div>`;
                 }
                 const addr = await signer.getAddress();
                 const nonce = await contract.nonces(addr);

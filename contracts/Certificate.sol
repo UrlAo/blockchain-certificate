@@ -72,7 +72,8 @@ contract CertificateRegistry {
         string memory _studentName,
         string memory _degree
     ) external onlyIssuer {
-        require(!certificates[_certHash].isIssued, "Certificate already issued");
+        Certificate memory prev = certificates[_certHash];
+        require(!(prev.isIssued && !prev.revoked), "Certificate already issued");
         
         certificates[_certHash] = Certificate({
             studentId: _studentId,
@@ -96,7 +97,8 @@ contract CertificateRegistry {
         string memory _degree,
         string memory _ipfsCid
     ) external onlyIssuer {
-        require(!certificates[_certHash].isIssued, "Certificate already issued");
+        Certificate memory prev = certificates[_certHash];
+        require(!(prev.isIssued && !prev.revoked), "Certificate already issued");
         certificates[_certHash] = Certificate({
             studentId: _studentId,
             studentName: _studentName,
@@ -125,7 +127,8 @@ contract CertificateRegistry {
         );
         for (uint256 i = 0; i < _hashes.length; i++) {
             bytes32 h = _hashes[i];
-            require(!certificates[h].isIssued, "Certificate already issued");
+            Certificate memory prev = certificates[h];
+            require(!(prev.isIssued && !prev.revoked), "Certificate already issued");
             certificates[h] = Certificate({
                 studentId: _studentIds[i],
                 studentName: _studentNames[i],
@@ -259,7 +262,8 @@ contract CertificateRegistry {
         require(_nonce == nonces[signer], "Invalid nonce");
         nonces[signer]++;
 
-        require(!certificates[_certHash].isIssued, "Certificate already issued");
+        Certificate memory prev = certificates[_certHash];
+        require(!(prev.isIssued && !prev.revoked), "Certificate already issued");
         certificates[_certHash] = Certificate({
             studentId: _studentId,
             studentName: _studentName,
