@@ -44,16 +44,15 @@
 
 ## 部署与前端配置
 - 将部署得到的合约地址写入：
-  - `frontend/issuer.html` 的 `contractAddress`
-  - `frontend/verifier.html` 的 `contractAddress`
+  - `frontend/config.js` 的 `CONTRACT_ADDRESS`
 - 若修改了合约，请重新编译并更新前端 ABI：
   ```bash
   npx hardhat compile
   node get-abi.js
   ```
-  然后将最新 ABI 替换到前端页面中的 `contractABI`（或改造为从 `abi.json` 加载）。
+  然后将最新 ABI 写入 `frontend/abi.json`（前端会自动加载）。
 
-拓展：项目已支持自动网络切换（31337）。如需进一步减少维护成本，可将地址与 ABI 抽离到 `frontend/config.js` 与 `abi.json` 并在页面中动态加载。
+拓展：项目已支持自动网络切换（31337）与动态配置加载（地址与 ABI 从 `frontend/config.js` 与 `frontend/abi.json` 加载）。
 
 ## 使用说明
 ### 一、准备钱包与网络

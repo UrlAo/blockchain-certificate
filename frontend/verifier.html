@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>验证证书 - 区块链证书系统</title>
  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+ <script src="config.js"></script>
     <style>
         body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
         .back-btn { background: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; margin-bottom: 20px; }
@@ -236,10 +237,24 @@
                     }
                 }
                 provider = new ethers.providers.Web3Provider(window.ethereum);
-                contract = new ethers.Contract(contractAddress, contractABI, provider);
+                await loadAbiIfNeeded();
+                const abiToUse = window.contractABI || contractABI;
+                const addrToUse = (typeof CONFIG !== 'undefined' && CONFIG.CONTRACT_ADDRESS) ? CONFIG.CONTRACT_ADDRESS : contractAddress;
+                contract = new ethers.Contract(addrToUse, abiToUse, provider);
                 console.log("以太坊连接初始化成功");
             } else {
                 alert('请安装MetaMask!');
+            }
+        }
+
+        async function loadAbiIfNeeded() {
+            try {
+                if (!window.contractABI && typeof CONFIG !== 'undefined' && CONFIG.ABI_URL) {
+                    const res = await fetch(CONFIG.ABI_URL);
+                    window.contractABI = await res.json();
+                }
+            } catch (e) {
+                console.warn('加载 ABI 失败，使用内置 ABI', e);
             }
         }
 
