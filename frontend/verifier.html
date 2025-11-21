@@ -296,11 +296,11 @@
                 // 将哈希字符串转换为bytes32
                 const hashBytes32 = '0x' + fileHash;
                 
-                // 调用合约验证
-                const result = await contract.verifyCertificate(hashBytes32);
-                const [isValid, studentId, studentName, degree, issueDate] = result;
+                // 调用合约查询完整信息
+                const result = await contract.getCertificate(hashBytes32);
+                const [isIssued, studentId, studentName, degree, issueDate, revoked, revokeReason, revokeDate, ipfsCid] = result;
                 
-                if (isValid) {
+                if (isIssued && !revoked) {
                     const date = new Date(Number(issueDate) * 1000).toLocaleString();
                     document.getElementById('result').innerHTML = `
                         <div class="card success">
@@ -311,7 +311,17 @@
                               <div>姓名: ${studentName}</div>
                               <div>学位: ${degree}</div>
                               <div>发行时间: ${date}</div>
+                              ${ipfsCid ? `<div>IPFS CID: ${ipfsCid}</div>` : ''}
                             </div>
+                        </div>
+                    `;
+                } else if (isIssued && revoked) {
+                    const rDate = new Date(Number(revokeDate) * 1000).toLocaleString();
+                    document.getElementById('result').innerHTML = `
+                        <div class="card warn">
+                            <h3>⚠️ 证书已撤销</h3>
+                            <div>原因：${revokeReason || '未提供'}</div>
+                            <div>时间：${rDate}</div>
                         </div>
                     `;
                 } else {

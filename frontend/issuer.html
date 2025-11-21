@@ -40,11 +40,13 @@
           <div class="field"><label for="studentName">学生姓名</label><input class="input" type="text" id="studentName" placeholder="例如: 张三"></div>
         </div>
         <div class="field"><label for="degree">学位信息</label><input class="input" type="text" id="degree" placeholder="例如: 计算机科学学士"></div>
+        <div class="field"><label for="cid">IPFS CID（可选）</label><input class="input" type="text" id="cid" placeholder="例如: bafy..."></div>
       </div>
       <div class="card">
         <h3>步骤 3：发行到区块链</h3>
         <div class="row">
           <button id="issueBtn" class="btn-primary" onclick="issueCertificate()" disabled>发行证书到区块链</button>
+          <button class="btn-secondary" onclick="revokeCurrentCertificate()">撤销当前证书</button>
         </div>
         <div id="status" class="hint"></div>
       </div>
@@ -360,7 +362,10 @@
                 // 将哈希字符串转换为bytes32
                 const hashBytes32 = '0x' + currentFileHash;
                 
-                const tx = await contract.issueCertificate(hashBytes32, studentId, studentName, degree);
+                const cid = document.getElementById('cid').value.trim();
+                const tx = cid ?
+                  await contract.issueCertificateWithCid(hashBytes32, studentId, studentName, degree, cid) :
+                  await contract.issueCertificate(hashBytes32, studentId, studentName, degree);
                 document.getElementById('status').innerHTML = `<div class="card info">交易已提交，等待确认<br>txHash: <span class="code">${tx.hash}</span> <button class="btn-secondary" onclick=\"copyText('${tx.hash}')\">复制</button></div>`;
                 
                 await tx.wait();
@@ -403,6 +408,23 @@
               document.getElementById('certFile').files = e.dataTransfer.files;
               await calculateHash();
           });
+        }
+
+        // 撤销证书（管理员）
+        async function revokeCurrentCertificate(){
+            if (!contract) { alert('请先连接钱包'); return; }
+            if (!currentFileHash) { alert('请先计算文件哈希'); return; }
+            const reason = prompt('请输入撤销原因');
+            if (reason === null) return;
+            try{
+                document.getElementById('status').innerHTML = '<div class="card warn">正在撤销证书...</div>';
+                const hashBytes32 = '0x' + currentFileHash;
+                const tx = await contract.revokeCertificate(hashBytes32, reason);
+                await tx.wait();
+                document.getElementById('status').innerHTML = '<div class="card success">已撤销证书</div>';
+            }catch(e){
+                document.getElementById('status').innerHTML = `<div class="card error">撤销失败: ${e.message}</div>`;
+            }
         }
 
         async function loadAbiIfNeeded() {

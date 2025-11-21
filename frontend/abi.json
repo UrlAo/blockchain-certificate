@@ -74,5 +74,53 @@
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "bytes32", "name": "_certHash", "type": "bytes32" },
+      { "internalType": "string", "name": "_reason", "type": "string" }
+    ],
+    "name": "revokeCertificate",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [ { "internalType": "address", "name": "account", "type": "address" } ],
+    "name": "addIssuer",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [ { "internalType": "address", "name": "account", "type": "address" } ],
+    "name": "removeIssuer",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [ { "internalType": "address", "name": "account", "type": "address" } ],
+    "name": "isIssuer",
+    "outputs": [ { "internalType": "bool", "name": "", "type": "bool" } ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [ { "internalType": "bytes32", "name": "_certHash", "type": "bytes32" } ],
+    "name": "getCertificate",
+    "outputs": [
+      { "internalType": "bool", "name": "", "type": "bool" },
+      { "internalType": "string", "name": "", "type": "string" },
+      { "internalType": "string", "name": "", "type": "string" },
+      { "internalType": "string", "name": "", "type": "string" },
+      { "internalType": "uint256", "name": "", "type": "uint256" },
+      { "internalType": "bool", "name": "", "type": "bool" },
+      { "internalType": "string", "name": "", "type": "string" },
+      { "internalType": "uint256", "name": "", "type": "uint256" },
+      { "internalType": "string", "name": "", "type": "string" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
   }
 ]
