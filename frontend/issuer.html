@@ -47,6 +47,7 @@
         <div class="row">
           <button id="issueBtn" class="btn-primary" onclick="issueCertificate()" disabled>发行证书到区块链</button>
           <button class="btn-secondary" onclick="revokeCurrentCertificate()">撤销当前证书</button>
+          <button class="btn-secondary" onclick="issueWithSignature()">签名发行</button>
         </div>
         <div id="status" class="hint"></div>
       </div>
@@ -265,7 +266,7 @@
                 signer = provider.getSigner();
                 await loadAbiIfNeeded();
                 const abiToUse = window.contractABI || contractABI;
-                const addrToUse = (typeof CONFIG !== 'undefined' && CONFIG.CONTRACT_ADDRESS) ? CONFIG.CONTRACT_ADDRESS : contractAddress;
+                const addrToUse = ((typeof CONFIG !== 'undefined' && CONFIG.CONTRACT_ADDRESS) ? CONFIG.CONTRACT_ADDRESS : contractAddress).trim();
                 contract = new ethers.Contract(addrToUse, abiToUse, signer);
                 console.log("以太坊连接初始化成功");
                 updateIssueBtnState();
@@ -300,7 +301,7 @@
             signer = provider.getSigner();
             await loadAbiIfNeeded();
             const abiToUse = window.contractABI || contractABI;
-            const addrToUse = (typeof CONFIG !== 'undefined' && CONFIG.CONTRACT_ADDRESS) ? CONFIG.CONTRACT_ADDRESS : contractAddress;
+            const addrToUse = ((typeof CONFIG !== 'undefined' && CONFIG.CONTRACT_ADDRESS) ? CONFIG.CONTRACT_ADDRESS : contractAddress).trim();
             contract = new ethers.Contract(addrToUse, abiToUse, signer);
             try {
                 const network = await provider.getNetwork();
@@ -356,24 +357,31 @@
             }
 
             try {
+                const hashBytes32 = '0x' + currentFileHash;
+                const existing = await contract.getCertificate(hashBytes32);
+                if (existing && existing[0]) {
+                    const issuedAt = new Date(Number(existing[4]) * 1000).toLocaleString();
+                    document.getElementById('status').innerHTML = `<div class="card warn">证书已存在，无法重复发行<br>学号: ${existing[1]} | 姓名: ${existing[2]} | 学位: ${existing[3]} | 时间: ${issuedAt}</div>`;
+                    return;
+                }
+
                 document.getElementById('status').innerHTML = '<div class="card info">正在发行证书...</div>';
                 document.getElementById('issueBtn').disabled = true;
-                
-                // 将哈希字符串转换为bytes32
-                const hashBytes32 = '0x' + currentFileHash;
-                
+
                 const cid = document.getElementById('cid').value.trim();
-                const tx = cid ?
-                  await contract.issueCertificateWithCid(hashBytes32, studentId, studentName, degree, cid) :
-                  await contract.issueCertificate(hashBytes32, studentId, studentName, degree);
+                let tx;
+                if (cid && typeof contract.issueCertificateWithCid === 'function') {
+                  tx = await contract.issueCertificateWithCid(hashBytes32, studentId, studentName, degree, cid);
+                } else {
+                  tx = await contract.issueCertificate(hashBytes32, studentId, studentName, degree);
+                }
                 document.getElementById('status').innerHTML = `<div class="card info">交易已提交，等待确认<br>txHash: <span class="code">${tx.hash}</span> <button class="btn-secondary" onclick=\"copyText('${tx.hash}')\">复制</button></div>`;
-                
+
                 await tx.wait();
                 document.getElementById('status').innerHTML = '<div class="card success">✅ 证书发行成功！</div>';
                 document.getElementById('issueBtn').disabled = false;
-                
+
             } catch (error) {
-                console.error('发行失败:', error);
                 document.getElementById('status').innerHTML = `<div class="card error">❌ 发行失败: ${error.message}</div>`;
                 document.getElementById('issueBtn').disabled = false;
             }
@@ -424,6 +432,58 @@
                 document.getElementById('status').innerHTML = '<div class="card success">已撤销证书</div>';
             }catch(e){
                 document.getElementById('status').innerHTML = `<div class="card error">撤销失败: ${e.message}</div>`;
+            }
+        }
+
+        async function issueWithSignature(){
+            if (!contract) { alert('请先连接钱包'); return; }
+            if (!currentFileHash) { alert('请先计算文件哈希'); return; }
+            const studentId = document.getElementById('studentId').value;
+            const studentName = document.getElementById('studentName').value;
+            const degree = document.getElementById('degree').value;
+            const cid = document.getElementById('cid').value.trim();
+            if (!studentId || !studentName || !degree) { alert('请填写所有信息'); return; }
+            try{
+                const hashBytes32 = '0x' + currentFileHash;
+                const existing = await contract.getCertificate(hashBytes32);
+                if (existing && existing[0]){
+                    const issuedAt = new Date(Number(existing[4]) * 1000).toLocaleString();
+                    document.getElementById('status').innerHTML = `<div class="card warn">证书已存在，无法签名重复发行<br>学号: ${existing[1]} | 姓名: ${existing[2]} | 学位: ${existing[3]} | 时间: ${issuedAt}</div>`;
+                    return;
+                }
+                const addr = await signer.getAddress();
+                const nonce = await contract.nonces(addr);
+                const types = {
+                    Certificate: [
+                        { name: 'certHash', type: 'bytes32' },
+                        { name: 'studentId', type: 'string' },
+                        { name: 'studentName', type: 'string' },
+                        { name: 'degree', type: 'string' },
+                        { name: 'ipfsCid', type: 'string' },
+                        { name: 'nonce', type: 'uint256' }
+                    ]
+                };
+                const value = {
+                    certHash: hashBytes32,
+                    studentId,
+                    studentName,
+                    degree,
+                    ipfsCid: cid,
+                    nonce: Number(nonce)
+                };
+                const domain = {
+                    name: 'CertificateRegistry',
+                    version: '1',
+                    chainId: (await provider.getNetwork()).chainId,
+                    verifyingContract: contract.address
+                };
+                const sig = await signer._signTypedData(domain, types, value);
+                document.getElementById('status').innerHTML = '<div class="card info">签名完成，提交交易...</div>';
+                const tx = await contract.issueWithSig(value.certHash, studentId, studentName, degree, cid, Number(nonce), sig);
+                await tx.wait();
+                document.getElementById('status').innerHTML = '<div class="card success">签名发行成功</div>';
+            }catch(e){
+                document.getElementById('status').innerHTML = `<div class="card error">签名发行失败: ${e.message}</div>`;
             }
         }
 

@@ -248,7 +248,7 @@
                 provider = new ethers.providers.Web3Provider(window.ethereum);
                 await loadAbiIfNeeded();
                 const abiToUse = window.contractABI || contractABI;
-                const addrToUse = (typeof CONFIG !== 'undefined' && CONFIG.CONTRACT_ADDRESS) ? CONFIG.CONTRACT_ADDRESS : contractAddress;
+                const addrToUse = ((typeof CONFIG !== 'undefined' && CONFIG.CONTRACT_ADDRESS) ? CONFIG.CONTRACT_ADDRESS : contractAddress).trim();
                 contract = new ethers.Contract(addrToUse, abiToUse, provider);
                 const network = await provider.getNetwork();
                 const netBadge = document.getElementById('netBadge');

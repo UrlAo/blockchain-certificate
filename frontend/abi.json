@@ -56,6 +56,19 @@
     "type": "function"
   },
   {
+    "inputs": [
+      { "internalType": "bytes32", "name": "_certHash", "type": "bytes32" },
+      { "internalType": "string", "name": "_studentId", "type": "string" },
+      { "internalType": "string", "name": "_studentName", "type": "string" },
+      { "internalType": "string", "name": "_degree", "type": "string" },
+      { "internalType": "string", "name": "_ipfsCid", "type": "string" }
+    ],
+    "name": "issueCertificateWithCid",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [ { "internalType": "bytes32", "name": "_certHash", "type": "bytes32" } ],
     "name": "simpleVerify",
     "outputs": [ { "internalType": "bool", "name": "", "type": "bool" } ],
@@ -120,6 +133,56 @@
       { "internalType": "uint256", "name": "", "type": "uint256" },
       { "internalType": "string", "name": "", "type": "string" }
     ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "bytes32", "name": "_certHash", "type": "bytes32" },
+      { "internalType": "string", "name": "_studentId", "type": "string" },
+      { "internalType": "string", "name": "_studentName", "type": "string" },
+      { "internalType": "string", "name": "_degree", "type": "string" },
+      { "internalType": "string", "name": "_ipfsCid", "type": "string" },
+      { "internalType": "uint256", "name": "_nonce", "type": "uint256" },
+      { "internalType": "bytes", "name": "_signature", "type": "bytes" }
+    ],
+    "name": "issueWithSig",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "bytes32", "name": "_root", "type": "bytes32" },
+      { "internalType": "string", "name": "_batchId", "type": "string" }
+    ],
+    "name": "issueBatchRoot",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "bytes32", "name": "_root", "type": "bytes32" },
+      { "internalType": "bytes32", "name": "_leaf", "type": "bytes32" },
+      { "internalType": "bytes32[]", "name": "_proof", "type": "bytes32[]" }
+    ],
+    "name": "verifyLeaf",
+    "outputs": [ { "internalType": "bool", "name": "", "type": "bool" } ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [ { "internalType": "bytes32", "name": "", "type": "bytes32" } ],
+    "name": "batchRoots",
+    "outputs": [ { "internalType": "bool", "name": "", "type": "bool" } ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [ { "internalType": "address", "name": "", "type": "address" } ],
+    "name": "nonces",
+    "outputs": [ { "internalType": "uint256", "name": "", "type": "uint256" } ],
     "stateMutability": "view",
     "type": "function"
   }

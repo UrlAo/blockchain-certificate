@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>批量登记 - 区块链证书系统</title>
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  <script src="config.js"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="title">📦 批量登记（Merkle Root）</div>
+      <div class="status">
+        <button class="link-btn" onclick="location.href='index.html'">返回首页</button>
+        <span id="netBadge" class="badge" style="display:none"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>步骤 1：选择批量文件</h3>
+      <input type="file" id="files" multiple accept=".pdf,.jpg,.jpeg,.png" />
+      <div class="row">
+        <button class="btn-primary" onclick="computeRoot()">计算 Merkle Root</button>
+      </div>
+      <div id="rootBox"></div>
+    </div>
+
+    <div class="card">
+      <h3>步骤 2：提交 Root 到区块链</h3>
+      <div class="field"><label for="batchId">批次标识</label><input class="input" id="batchId" placeholder="例如: 2025-毕业批次"></div>
+      <div class="row">
+        <button class="btn-primary" onclick="submitRoot()" id="submitBtn" disabled>提交 Root</button>
+      </div>
+      <div id="status" class="hint"></div>
+    </div>
+
+    <div class="card">
+      <h3>步骤 3：单文件证明验证</h3>
+      <div class="field"><label for="proofFile">选择文件生成证明</label><input type="file" id="proofFile" accept=".pdf,.jpg,.jpeg,.png" /></div>
+      <div class="row">
+        <button class="btn-secondary" onclick="genAndVerifyProof()">生成并验证证明</button>
+      </div>
+      <div id="proofBox"></div>
+    </div>
+  </div>
+
+  <script>
+    let provider, signer, contract
+    let leaves = []
+    let root = ''
+    
+    async function init(){
+      if (typeof window.ethereum === 'undefined') { alert('请安装MetaMask'); return }
+      provider = new ethers.providers.Web3Provider(window.ethereum)
+      await provider.send('eth_requestAccounts', [])
+      signer = provider.getSigner()
+      const network = await provider.getNetwork()
+      const netBadge = document.getElementById('netBadge')
+      netBadge.style.display = 'inline-block'
+      netBadge.innerText = `chainId: ${network.chainId}`
+      const res = await fetch(CONFIG.ABI_URL)
+      const abi = await res.json()
+      contract = new ethers.Contract(CONFIG.CONTRACT_ADDRESS.trim(), abi, signer)
+    }
+
+    async function computeSha256(file){
+      const buf = await file.arrayBuffer()
+      const hashBuf = await crypto.subtle.digest('SHA-256', buf)
+      const hashArray = Array.from(new Uint8Array(hashBuf))
+      return '0x' + hashArray.map(b=>b.toString(16).padStart(2,'0')).join('')
+    }
+
+    function keccak(dataHex){
+      return ethers.utils.keccak256(dataHex)
+    }
+
+    async function computeRoot(){
+      const input = document.getElementById('files')
+      if (!input.files.length) { alert('请选择文件'); return }
+      leaves = []
+      for (let f of input.files){
+        const sha = await computeSha256(f)
+        // 叶子使用 SHA-256（hex）作为原始值，再 keccak 做树运算
+        const leaf = keccak(sha)
+        leaves.push(leaf)
+      }
+      if (leaves.length === 1){ root = leaves[0] }
+      else {
+        let level = leaves.slice()
+        while (level.length > 1){
+          const next = []
+          for (let i = 0; i < level.length; i += 2){
+            const left = level[i]
+            const right = (i+1 < level.length) ? level[i+1] : level[i]
+            const pair = (left.toLowerCase() <= right.toLowerCase()) ? left + right.substr(2) : right + left.substr(2)
+            next.push(ethers.utils.keccak256(pair))
+          }
+          level = next
+        }
+        root = level[0]
+      }
+      document.getElementById('rootBox').innerHTML = `<div class="card"><div class="row"><strong>Merkle Root</strong><button class="btn-secondary" onclick=\"copyText('${root}')\">复制</button></div><div class="code">${root}</div></div>`
+      document.getElementById('submitBtn').disabled = false
+    }
+
+    async function submitRoot(){
+      if (!contract) await init()
+      const batchId = document.getElementById('batchId').value.trim() || ''
+      try{
+        document.getElementById('status').innerHTML = '<div class="card info">提交中...</div>'
+        const tx = await contract.issueBatchRoot(root, batchId)
+        await tx.wait()
+        document.getElementById('status').innerHTML = '<div class="card success">提交成功</div>'
+      }catch(e){
+        document.getElementById('status').innerHTML = `<div class="card error">提交失败: ${e.message}</div>`
+      }
+    }
+
+    function buildProofFor(index){
+      // 简化：重新按 leaves 顺序构建证明（演示用途）
+      let level = leaves.slice()
+      const proof = []
+      let idx = index
+      while (level.length > 1){
+        const isRight = idx % 2 === 1
+        const pairIdx = isRight ? idx - 1 : idx + 1
+        const sibling = level[pairIdx] || level[idx]
+        proof.push(sibling)
+        const next = []
+        for (let i = 0; i < level.length; i += 2){
+          const left = level[i]
+          const right = (i+1 < level.length) ? level[i+1] : level[i]
+          const pair = (left.toLowerCase() <= right.toLowerCase()) ? left + right.substr(2) : right + left.substr(2)
+          next.push(ethers.utils.keccak256(pair))
+        }
+        level = next
+        idx = Math.floor(idx/2)
+      }
+      return proof
+    }
+
+    async function genAndVerifyProof(){
+      const pf = document.getElementById('proofFile')
+      if (!pf.files.length){ alert('请选择文件'); return }
+      const sha = await computeSha256(pf.files[0])
+      const leaf = keccak(sha)
+      const idx = leaves.indexOf(leaf)
+      if (idx === -1){
+        document.getElementById('proofBox').innerHTML = '<div class="card warn">该文件不在当前批次</div>'
+        return
+      }
+      const proof = buildProofFor(idx)
+      const ok = await contract.verifyLeaf(root, leaf, proof)
+      document.getElementById('proofBox').innerHTML = ok ? '<div class="card success">✅ 证明验证通过</div>' : '<div class="card error">❌ 证明验证失败</div>'
+    }
+
+    function copyText(text){ navigator.clipboard.writeText(text).catch(()=>{}) }
+    window.onload = init
+  </script>
+</body>
+</html>
