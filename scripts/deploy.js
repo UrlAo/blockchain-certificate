@@ -17,6 +17,14 @@ async function main() {
   console.log("证书合约部署成功!");
   console.log("合约地址:", contractAddress);
   console.log("管理员地址:", deployer.address);
+
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const out = path.resolve(__dirname, '..', '.logs', 'contract.addr');
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    fs.writeFileSync(out, contractAddress, 'utf8');
+  } catch (e) {}
 }
 
 main()
