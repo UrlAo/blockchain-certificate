@@ -36,6 +36,42 @@
       "artifacts": [
         "CertificateRegistry"
       ]
+    },
+    "C:\\Users\\Livio\\Desktop\\BC\\blockchain-certificate\\contracts\\Certificate.sol": {
+      "lastModificationDate": 1763819165938,
+      "contentHash": "fa9db89854a10d707bf7fee0d97037bd",
+      "sourceName": "contracts/Certificate.sol",
+      "solcConfig": {
+        "version": "0.8.19",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "CertificateRegistry"
+      ]
     }
   }
 }
