@@ -11,19 +11,30 @@ set HTTP_PORT=8080
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 if not exist "%PID_DIR%" mkdir "%PID_DIR%"
 
-echo [1/4] 启动本地 Hardhat 节点 (如未运行)
-call :port_in_use %HARDHAT_PORT%
-if %ERRORLEVEL%==0 (
-  echo  - 端口 %HARDHAT_PORT% 已占用，跳过启动。
-) else (
-  powershell -NoProfile -ExecutionPolicy Bypass -Command "$env:HARDHAT_DISABLE_TELEMETRY_PROMPT='true'; $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c','npx hardhat node ^> .logs\\hardhat-node.log 2^>^&1' -WorkingDirectory '%ROOT%' -WindowStyle Hidden -PassThru; Set-Content '.pids\\hardhat-node.pid' $proc.Id; Start-Sleep -Seconds 2"
-  echo  - Hardhat 节点已启动，日志: %LOG_DIR%\hardhat-node.log
+if not exist "%ROOT%\node_modules\.bin\hardhat.cmd" (
+  echo [0/4] 安装项目依赖（首次运行）
+  call npm install --no-audit --no-fund --no-progress --registry=https://registry.npmmirror.com > "%LOG_DIR%\install.log" 2>&1
+  if errorlevel 1 (
+    echo  - 依赖安装失败，请查看: %LOG_DIR%\install.log
+    goto :end
+  ) else (
+    echo  - 依赖安装完成
+  )
 )
 
+echo [1/4] 启动本地 Hardhat 节点
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$env:HARDHAT_DISABLE_TELEMETRY_PROMPT='true'; $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c','"%ROOT%\\node_modules\\.bin\\hardhat.cmd" node ^> .logs\\hardhat-node.log 2^>^&1' -WorkingDirectory '%ROOT%' -WindowStyle Hidden -PassThru; Set-Content '.pids\\hardhat-node.pid' $proc.Id"
+call :wait_port_open %HARDHAT_PORT% 15
+if not %ERRORLEVEL%==0 (
+  echo  - Hardhat 节点启动失败，请检查日志: %LOG_DIR%\hardhat-node.log
+  goto :end
+)
+echo  - Hardhat 节点已启动，日志: %LOG_DIR%\hardhat-node.log
+
 echo [2/4] 部署合约到本地网络
-call npm run deploy > "%LOG_DIR%\deploy.log" 2>&1
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$log=Get-Content '%LOG_DIR%\\deploy.log'; $m = $log | Select-String -Pattern '合约地址:\s*(0x[0-9a-fA-F]{40})' | Select-Object -Last 1; if (-not $m) { Write-Error '部署未解析到合约地址'; exit 1 }; $addr=$m.Matches[0].Groups[1].Value; Write-Host (' - 解析到合约地址: ' + $addr); Set-Content '%LOG_DIR%\\contract.addr' $addr;"
-if errorlevel 1 (
+set HARDHAT_DISABLE_TELEMETRY_PROMPT=true
+call "%ROOT%\node_modules\.bin\hardhat.cmd" run scripts\deploy.js --network localhost > "%LOG_DIR%\deploy.log" 2>&1
+if not exist "%LOG_DIR%\contract.addr" (
   echo 部署未解析到合约地址，请检查日志: %LOG_DIR%\deploy.log
   goto :end
 )
@@ -36,7 +47,7 @@ call :port_in_use %HTTP_PORT%
 if %ERRORLEVEL%==0 (
   echo  - 端口 %HTTP_PORT% 已占用，跳过启动。
 ) else (
-  powershell -NoProfile -ExecutionPolicy Bypass -Command "$proc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c','npx http-server ./frontend -p %HTTP_PORT% --cors ^> .logs\\frontend.log 2^>^&1' -WorkingDirectory '%ROOT%' -WindowStyle Hidden -PassThru; Set-Content '.pids\\frontend.pid' $proc.Id; Start-Sleep -Seconds 1"
+  powershell -NoProfile -ExecutionPolicy Bypass -Command "$proc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c','"%ROOT%\\node_modules\\.bin\\http-server.cmd" ./frontend -p %HTTP_PORT% --cors ^> .logs\\frontend.log 2^>^&1' -WorkingDirectory '%ROOT%' -WindowStyle Hidden -PassThru; Set-Content '.pids\\frontend.pid' $proc.Id; Start-Sleep -Seconds 1"
   echo  - 前端已启动，日志: %LOG_DIR%\frontend.log
 )
 
@@ -47,12 +58,19 @@ goto :end
 
 :port_in_use
 set PORT=%1
-netstat -ano | findstr ":%PORT% " >nul
-if %ERRORLEVEL%==0 (
-  exit /b 0
-) else (
-  exit /b 1
+powershell -NoProfile -Command "try { (New-Object System.Net.Sockets.TcpClient('127.0.0.1', %PORT%)).Close(); exit 0 } catch { exit 1 }"
+
+:wait_port_open
+set PORT=%1
+set SECS=%2
+for /L %%i in (1,1,%SECS%) do (
+  powershell -NoProfile -Command "try { (New-Object System.Net.Sockets.TcpClient('127.0.0.1', %PORT%)).Close(); exit 0 } catch { exit 1 }"
+  if %ERRORLEVEL%==0 (
+    exit /b 0
+  )
+  ping -n 2 127.0.0.1 >nul
 )
+exit /b 1
 
 :end
 endlocal
