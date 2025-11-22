@@ -36,20 +36,26 @@
    npm run deploy
    ```
    记录输出的合约地址，例如：`0x5FbDB2315678afecb367f032d93F642f64180aa3`
-4. 启动前端（进入 `frontend` 目录）
-   ```bash
-   python3 -m http.server 8080
-   # 或
-   npx http-server .
-   ```
+4. 启动前端（在项目根目录）
+  ```bash
+  python3 -m http.server 8080
+  # 或（推荐）
+  npx http-server ./frontend -p 8080 --cors
+  ```
 5. 打开浏览器访问 `http://localhost:8080/`，在 MetaMask 选择 `Localhost 8545` 网络。
 
 ### 一键启动（推荐）
+- macOS/Linux:
 ```bash
 npm run start-local
 ```
+- Windows:
+```bash
+npm run start-win
+```
 - 自动启动本地链（若未运行）、部署合约并解析地址、写入 `frontend/config.js`、启动前端并打开浏览器。
 - 日志输出位置：`.logs/`；进程 PID：`.pids/`。
+- Windows 批处理脚本：`scripts/start-local.bat`
 
 ## 部署与前端配置
 - 将部署得到的合约地址写入：
