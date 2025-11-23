@@ -1,7 +1,9 @@
 @echo off
+chcp 65001 >nul
 setlocal EnableExtensions EnableDelayedExpansion
 
 set ROOT=%~dp0..
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding; $OutputEncoding = [Console]::OutputEncoding" >nul 2>&1
 set LOG_DIR=%ROOT%\.logs
 set PID_DIR=%ROOT%\.pids
 set FRONT_DIR=%ROOT%\frontend
@@ -23,7 +25,7 @@ if not exist "%ROOT%\node_modules\.bin\hardhat.cmd" (
 )
 
 echo [1/4] 启动本地 Hardhat 节点
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$env:HARDHAT_DISABLE_TELEMETRY_PROMPT='true'; $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c','"%ROOT%\\node_modules\\.bin\\hardhat.cmd" node ^> .logs\\hardhat-node.log 2^>^&1' -WorkingDirectory '%ROOT%' -WindowStyle Hidden -PassThru; Set-Content '.pids\\hardhat-node.pid' $proc.Id"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$env:HARDHAT_DISABLE_TELEMETRY_PROMPT='true'; $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c','chcp 65001 ^>NUL ^&^& "%ROOT%\\node_modules\\.bin\\hardhat.cmd" node ^> .logs\\hardhat-node.log 2^>^&1' -WorkingDirectory '%ROOT%' -WindowStyle Hidden -PassThru; Set-Content '.pids\\hardhat-node.pid' $proc.Id"
 call :wait_port_open %HARDHAT_PORT% 15
 if not %ERRORLEVEL%==0 (
   echo  - Hardhat 节点启动失败，请检查日志: %LOG_DIR%\hardhat-node.log
@@ -47,7 +49,7 @@ call :port_in_use %HTTP_PORT%
 if %ERRORLEVEL%==0 (
   echo  - 端口 %HTTP_PORT% 已占用，跳过启动。
 ) else (
-  powershell -NoProfile -ExecutionPolicy Bypass -Command "$proc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c','"%ROOT%\\node_modules\\.bin\\http-server.cmd" ./frontend -p %HTTP_PORT% --cors ^> .logs\\frontend.log 2^>^&1' -WorkingDirectory '%ROOT%' -WindowStyle Hidden -PassThru; Set-Content '.pids\\frontend.pid' $proc.Id; Start-Sleep -Seconds 1"
+  powershell -NoProfile -ExecutionPolicy Bypass -Command "$proc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c','chcp 65001 ^>NUL ^&^& "%ROOT%\\node_modules\\.bin\\http-server.cmd" ./frontend -p %HTTP_PORT% --cors ^> .logs\\frontend.log 2^>^&1' -WorkingDirectory '%ROOT%' -WindowStyle Hidden -PassThru; Set-Content '.pids\\frontend.pid' $proc.Id; Start-Sleep -Seconds 1"
   echo  - 前端已启动，日志: %LOG_DIR%\frontend.log
 )
 

@@ -59,7 +59,7 @@
         let currentAccount = '';
         const LOCAL_CHAIN_ID_HEX = '0x7A69';
         const LOCAL_RPC_URL = 'http://127.0.0.1:8545';
-        const contractAddress = '0x5FbDB2315678afecb367f032d93F642f64180aa3'; // 部署后替换为实际地址
+        const contractAddress = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
         const contractABI = [  {
     "inputs": [],
     "stateMutability": "nonpayable",
@@ -210,41 +210,76 @@
   },
   {
     "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "_certHash",
-        "type": "bytes32"
-      }
+      { "internalType": "bytes32", "name": "_certHash", "type": "bytes32" }
     ],
     "name": "verifyCertificate",
     "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      },
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      },
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      },
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      },
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
+      { "internalType": "bool", "name": "", "type": "bool" },
+      { "internalType": "string", "name": "", "type": "string" },
+      { "internalType": "string", "name": "", "type": "string" },
+      { "internalType": "string", "name": "", "type": "string" },
+      { "internalType": "uint256", "name": "", "type": "uint256" }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [ { "internalType": "bytes32", "name": "_certHash", "type": "bytes32" } ],
+    "name": "getCertificate",
+    "outputs": [
+      { "internalType": "bool", "name": "", "type": "bool" },
+      { "internalType": "string", "name": "", "type": "string" },
+      { "internalType": "string", "name": "", "type": "string" },
+      { "internalType": "string", "name": "", "type": "string" },
+      { "internalType": "uint256", "name": "", "type": "uint256" },
+      { "internalType": "bool", "name": "", "type": "bool" },
+      { "internalType": "string", "name": "", "type": "string" },
+      { "internalType": "uint256", "name": "", "type": "uint256" },
+      { "internalType": "string", "name": "", "type": "string" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [ { "internalType": "bytes32", "name": "_certHash", "type": "bytes32" }, { "internalType": "string", "name": "_reason", "type": "string" } ],
+    "name": "revokeCertificate",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [ { "internalType": "address", "name": "", "type": "address" } ],
+    "name": "nonces",
+    "outputs": [ { "internalType": "uint256", "name": "", "type": "uint256" } ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "bytes32", "name": "_certHash", "type": "bytes32" },
+      { "internalType": "string", "name": "_studentId", "type": "string" },
+      { "internalType": "string", "name": "_studentName", "type": "string" },
+      { "internalType": "string", "name": "_degree", "type": "string" },
+      { "internalType": "string", "name": "_ipfsCid", "type": "string" }
+    ],
+    "name": "issueCertificateWithCid",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "bytes32", "name": "_certHash", "type": "bytes32" },
+      { "internalType": "string", "name": "_studentId", "type": "string" },
+      { "internalType": "string", "name": "_studentName", "type": "string" },
+      { "internalType": "string", "name": "_degree", "type": "string" },
+      { "internalType": "string", "name": "_ipfsCid", "type": "string" },
+      { "internalType": "uint256", "name": "_nonce", "type": "uint256" },
+      { "internalType": "bytes", "name": "_signature", "type": "bytes" }
+    ],
+    "name": "issueWithSig",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   } ];
 
@@ -267,7 +302,18 @@
                 await loadAbiIfNeeded();
                 const abiToUse = window.contractABI || contractABI;
                 const addrToUse = ((typeof CONFIG !== 'undefined' && CONFIG.CONTRACT_ADDRESS) ? CONFIG.CONTRACT_ADDRESS : contractAddress).trim();
-                contract = new ethers.Contract(addrToUse, abiToUse, signer);
+                const code = await provider.getCode(addrToUse);
+                if (!code || code === '0x') {
+                    const fallback = contractAddress.trim();
+                    const code2 = await provider.getCode(fallback);
+                    if (code2 && code2 !== '0x') {
+                        contract = new ethers.Contract(fallback, abiToUse, signer);
+                    } else {
+                        throw new Error('合约地址无效或未部署，请运行本地节点并重新部署合约');
+                    }
+                } else {
+                    contract = new ethers.Contract(addrToUse, abiToUse, signer);
+                }
                 console.log("以太坊连接初始化成功");
                 updateIssueBtnState();
                 updateCalcBtnState();
@@ -303,7 +349,18 @@
             await loadAbiIfNeeded();
             const abiToUse = window.contractABI || contractABI;
             const addrToUse = ((typeof CONFIG !== 'undefined' && CONFIG.CONTRACT_ADDRESS) ? CONFIG.CONTRACT_ADDRESS : contractAddress).trim();
-            contract = new ethers.Contract(addrToUse, abiToUse, signer);
+            const code = await provider.getCode(addrToUse);
+            if (!code || code === '0x') {
+                const fallback = contractAddress.trim();
+                const code2 = await provider.getCode(fallback);
+                if (code2 && code2 !== '0x') {
+                    contract = new ethers.Contract(fallback, abiToUse, signer);
+                } else {
+                    throw new Error('合约地址无效或未部署，请运行本地节点并重新部署合约');
+                }
+            } else {
+                contract = new ethers.Contract(addrToUse, abiToUse, signer);
+            }
             try {
                 const network = await provider.getNetwork();
                 const addr = await signer.getAddress();

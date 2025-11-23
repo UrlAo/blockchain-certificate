@@ -227,6 +227,23 @@
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "inputs": [ { "internalType": "bytes32", "name": "_certHash", "type": "bytes32" } ],
+    "name": "getCertificate",
+    "outputs": [
+      { "internalType": "bool", "name": "", "type": "bool" },
+      { "internalType": "string", "name": "", "type": "string" },
+      { "internalType": "string", "name": "", "type": "string" },
+      { "internalType": "string", "name": "", "type": "string" },
+      { "internalType": "uint256", "name": "", "type": "uint256" },
+      { "internalType": "bool", "name": "", "type": "bool" },
+      { "internalType": "string", "name": "", "type": "string" },
+      { "internalType": "uint256", "name": "", "type": "uint256" },
+      { "internalType": "string", "name": "", "type": "string" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
   } ];
 
         // 初始化以太坊连接（只读模式）
@@ -249,7 +266,18 @@
                 await loadAbiIfNeeded();
                 const abiToUse = window.contractABI || contractABI;
                 const addrToUse = ((typeof CONFIG !== 'undefined' && CONFIG.CONTRACT_ADDRESS) ? CONFIG.CONTRACT_ADDRESS : contractAddress).trim();
-                contract = new ethers.Contract(addrToUse, abiToUse, provider);
+                const code = await provider.getCode(addrToUse);
+                if (!code || code === '0x') {
+                    const fallback = contractAddress.trim();
+                    const code2 = await provider.getCode(fallback);
+                    if (code2 && code2 !== '0x') {
+                        contract = new ethers.Contract(fallback, abiToUse, provider);
+                    } else {
+                        throw new Error('合约地址无效或未部署，请运行本地节点并重新部署合约');
+                    }
+                } else {
+                    contract = new ethers.Contract(addrToUse, abiToUse, provider);
+                }
                 const network = await provider.getNetwork();
                 const netBadge = document.getElementById('netBadge');
                 netBadge.style.display = 'inline-block';
