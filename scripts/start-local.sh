@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export LC_ALL="en_US.UTF-8"
+export LANG="en_US.UTF-8"
+
 ROOT_DIR="$(cd "$(dirname "$0")"/.. && pwd)"
 LOG_DIR="$ROOT_DIR/.logs"
 PID_DIR="$ROOT_DIR/.pids"
@@ -33,6 +36,20 @@ if [[ -z "$ADDR" ]]; then
   exit 1
 fi
 echo " - 解析到合约地址: $ADDR"
+
+ACCOUNTS_LOG="$LOG_DIR/accounts.log"
+if [[ -f "$ACCOUNTS_LOG" ]]; then
+  echo " - 账户信息已生成: $ACCOUNTS_LOG"
+else
+  if [[ -f "$LOG_DIR/hardhat-node.log" ]]; then
+    grep -E '^(Account #[0-9]+:|Private Key: )' "$LOG_DIR/hardhat-node.log" > "$ACCOUNTS_LOG" || true
+    if [[ -s "$ACCOUNTS_LOG" ]]; then
+      echo " - 账户信息已写入: $ACCOUNTS_LOG"
+    else
+      echo " - 未能解析账户信息（请参见 deploy.js 的生成逻辑）"
+    fi
+  fi
+fi
 
 echo "[3/4] 更新前端配置地址"
 CFG_FILE="$FRONT_DIR/config.js"
