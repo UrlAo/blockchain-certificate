@@ -67,10 +67,14 @@
     }
 
     async function computeSha256(file){
-      const buf = await file.arrayBuffer()
-      const hashBuf = await crypto.subtle.digest('SHA-256', buf)
-      const hashArray = Array.from(new Uint8Array(hashBuf))
-      return '0x' + hashArray.map(b=>b.toString(16).padStart(2,'0')).join('')
+      try {
+        const buf = await file.arrayBuffer()
+        const hashBuf = await crypto.subtle.digest('SHA-256', buf)
+        const hashArray = Array.from(new Uint8Array(hashBuf))
+        return '0x' + hashArray.map(b=>b.toString(16).padStart(2,'0')).join('')
+      } catch (e) {
+        throw new Error('SHA-256 计算失败：请通过本地 HTTP 服务或 https 打开页面')
+      }
     }
 
     function keccak(dataHex){
@@ -145,17 +149,22 @@
 
     async function genAndVerifyProof(){
       const pf = document.getElementById('proofFile')
-      if (!pf.files.length){ alert('请选择文件'); return }
-      const sha = await computeSha256(pf.files[0])
-      const leaf = keccak(sha)
-      const idx = leaves.indexOf(leaf)
-      if (idx === -1){
-        document.getElementById('proofBox').innerHTML = '<div class="card warn">该文件不在当前批次</div>'
-        return
+      try {
+        if (!contract) await init()
+        if (!pf.files.length){ alert('请选择文件'); return }
+        const sha = await computeSha256(pf.files[0])
+        const leaf = keccak(sha)
+        const idx = leaves.indexOf(leaf)
+        if (idx === -1){
+          document.getElementById('proofBox').innerHTML = '<div class="card warn">该文件不在当前批次</div>'
+          return
+        }
+        const proof = buildProofFor(idx)
+        const ok = await contract.verifyLeaf(root, leaf, proof)
+        document.getElementById('proofBox').innerHTML = ok ? '<div class="card success">✅ 证明验证通过</div>' : '<div class="card error">❌ 证明验证失败</div>'
+      } catch (e) {
+        document.getElementById('proofBox').innerHTML = `<div class="card error">验证失败: ${e.message}</div>`
       }
-      const proof = buildProofFor(idx)
-      const ok = await contract.verifyLeaf(root, leaf, proof)
-      document.getElementById('proofBox').innerHTML = ok ? '<div class="card success">✅ 证明验证通过</div>' : '<div class="card error">❌ 证明验证失败</div>'
     }
 
     function updateButtons(){
@@ -166,7 +175,7 @@
       const pf = document.getElementById('proofFile')
 
       const canSubmit = Boolean(root) && Boolean(contract)
-      const canProof = Boolean(root) && pf && pf.files && pf.files.length > 0
+      const canProof = Boolean(root) && Boolean(contract) && pf && pf.files && pf.files.length > 0
 
       submitBtn.classList.toggle('enabled', canSubmit)
       submitCard.classList.toggle('enabled', canSubmit)

@@ -36,79 +36,79 @@
     const LOCAL_RPC_URL = 'http://127.0.0.1:8545'
 
     async function init() {
-      if (typeof window.ethereum === 'undefined') { alert('请安装MetaMask'); return }
-      const currentChain = await window.ethereum.request({ method: 'eth_chainId' })
-      if (currentChain !== LOCAL_CHAIN_ID_HEX) {
-        try {
-          await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: LOCAL_CHAIN_ID_HEX }] })
-        } catch (e) {
-          if (e && e.code === 4902) {
-            await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [{ chainId: LOCAL_CHAIN_ID_HEX, chainName: 'Hardhat Local', rpcUrls: [LOCAL_RPC_URL], nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 } }] })
-          }
-        }
+      const status = document.getElementById('summary')
+      if (typeof window.ethereum === 'undefined') { alert('请安装MetaMask'); throw new Error('MetaMask 未安装') }
+      try {
+        provider = new ethers.providers.Web3Provider(window.ethereum)
+        await provider.send('eth_requestAccounts', [])
+        const network = await provider.getNetwork()
+        const netBadge = document.getElementById('netBadge')
+        netBadge.style.display = 'inline-block'
+        netBadge.innerText = `chainId: ${network.chainId}`
+        const res = await fetch(CONFIG.ABI_URL)
+        const abi = await res.json()
+        contract = new ethers.Contract(CONFIG.CONTRACT_ADDRESS.trim(), abi, provider)
+        document.getElementById('loadBtn').classList.add('enabled')
+        const auditCard = document.getElementById('auditCard')
+        auditCard.classList.add('enabled')
+      } catch (e) {
+        status.innerHTML = `<div class="card error">初始化失败: ${e.message}</div>`
+        throw e
       }
-      provider = new ethers.providers.Web3Provider(window.ethereum)
-      await provider.send('eth_requestAccounts', [])
-      const network = await provider.getNetwork()
-      const netBadge = document.getElementById('netBadge')
-      netBadge.style.display = 'inline-block'
-      netBadge.innerText = `chainId: ${network.chainId}`
-      const res = await fetch(CONFIG.ABI_URL)
-      const abi = await res.json()
-      contract = new ethers.Contract(CONFIG.CONTRACT_ADDRESS.trim(), abi, provider)
-      document.getElementById('loadBtn').classList.add('enabled')
-      const auditCard = document.getElementById('auditCard')
-      auditCard.classList.add('enabled')
     }
 
     async function loadEvents() {
-      if (!contract) await init()
       const status = document.getElementById('summary')
-      status.innerText = '加载中...'
-      const fromBlock = 0
-      const toBlock = 'latest'
-      let issued = [], revoked = [], added = [], removed = [], batchRoots = []
-      try { issued = await contract.queryFilter(contract.filters.CertificateIssued(), fromBlock, toBlock) } catch(_){}
-      try { revoked = await contract.queryFilter(contract.filters.CertificateRevoked(), fromBlock, toBlock) } catch(_){}
-      try { added = await contract.queryFilter(contract.filters.IssuerAdded(), fromBlock, toBlock) } catch(_){}
-      try { removed = await contract.queryFilter(contract.filters.IssuerRemoved(), fromBlock, toBlock) } catch(_){}
-      try { batchRoots = await contract.queryFilter(contract.filters.BatchRootIssued(), fromBlock, toBlock) } catch(_){}
+      try {
+        if (!contract) await init()
+        status.innerText = '加载中...'
+        const fromBlock = 0
+        const toBlock = 'latest'
+        let issued = [], revoked = [], added = [], removed = [], batchRoots = []
+        try { issued = await contract.queryFilter(contract.filters.CertificateIssued(), fromBlock, toBlock) } catch(_){}
+        try { revoked = await contract.queryFilter(contract.filters.CertificateRevoked(), fromBlock, toBlock) } catch(_){}
+        try { added = await contract.queryFilter(contract.filters.IssuerAdded(), fromBlock, toBlock) } catch(_){}
+        try { removed = await contract.queryFilter(contract.filters.IssuerRemoved(), fromBlock, toBlock) } catch(_){}
+        try { batchRoots = await contract.queryFilter(contract.filters.BatchRootIssued(), fromBlock, toBlock) } catch(_){}
 
-      cached = []
-      const push = (type, ev) => {
-        cached.push({
-          type,
-          blockNumber: ev.blockNumber,
-          txHash: ev.transactionHash,
-          args: ev.args && Array.from(ev.args)
-        })
+        cached = []
+        const push = (type, ev) => {
+          cached.push({
+            type,
+            blockNumber: ev.blockNumber,
+            txHash: ev.transactionHash,
+            args: ev.args && Array.from(ev.args)
+          })
+        }
+        issued.forEach(e=>push('CertificateIssued', e))
+        revoked.forEach(e=>push('CertificateRevoked', e))
+        added.forEach(e=>push('IssuerAdded', e))
+        removed.forEach(e=>push('IssuerRemoved', e))
+        batchRoots.forEach(e=>push('BatchRootIssued', e))
+
+        cached.sort((a,b)=>a.blockNumber-b.blockNumber)
+        status.innerText = `共 ${cached.length} 条事件`
+        const rows = cached.length ? cached.map(ev=>`
+          <div class="card">
+            <div class="row"><strong>${ev.type}</strong> <span class="hint">block: ${ev.blockNumber}</span></div>
+            <div class="hint">tx: ${ev.txHash}</div>
+            <div>${renderArgs(ev)}</div>
+          </div>
+        `).join('') : '<div class="card info">当前没有事件记录</div>'
+        document.getElementById('events').innerHTML = rows
+
+        const csvBtn = document.getElementById('csvBtn')
+        const jsonBtn = document.getElementById('jsonBtn')
+        const auditCard = document.getElementById('auditCard')
+        const canExport = cached.length > 0
+        csvBtn.disabled = !canExport
+        jsonBtn.disabled = !canExport
+        csvBtn.classList.toggle('enabled', canExport)
+        jsonBtn.classList.toggle('enabled', canExport)
+        auditCard.classList.toggle('enabled', true)
+      } catch (e) {
+        status.innerHTML = `<div class="card error">加载失败: ${e.message}</div>`
       }
-      issued.forEach(e=>push('CertificateIssued', e))
-      revoked.forEach(e=>push('CertificateRevoked', e))
-      added.forEach(e=>push('IssuerAdded', e))
-      removed.forEach(e=>push('IssuerRemoved', e))
-      batchRoots.forEach(e=>push('BatchRootIssued', e))
-
-      cached.sort((a,b)=>a.blockNumber-b.blockNumber)
-      status.innerText = `共 ${cached.length} 条事件`
-      const rows = cached.length ? cached.map(ev=>`
-        <div class="card">
-          <div class="row"><strong>${ev.type}</strong> <span class="hint">block: ${ev.blockNumber}</span></div>
-          <div class="hint">tx: ${ev.txHash}</div>
-          <div>${renderArgs(ev)}</div>
-        </div>
-      `).join('') : '<div class="card info">当前没有事件记录</div>'
-      document.getElementById('events').innerHTML = rows
-
-      const csvBtn = document.getElementById('csvBtn')
-      const jsonBtn = document.getElementById('jsonBtn')
-      const auditCard = document.getElementById('auditCard')
-      const canExport = cached.length > 0
-      csvBtn.disabled = !canExport
-      jsonBtn.disabled = !canExport
-      csvBtn.classList.toggle('enabled', canExport)
-      jsonBtn.classList.toggle('enabled', canExport)
-      auditCard.classList.toggle('enabled', true)
     }
 
     function renderArgs(ev){
